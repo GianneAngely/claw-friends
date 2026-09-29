@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Claw Friends</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="fx"></div>
+<div id="hud">
+  <div class="pill logo" id="logo"><span data-icon="duck"></span>Claw Friends</div>
+  <button class="btn back hide" id="back" aria-label="Back to the game center"><span data-icon="left"></span></button>
+  <button class="btn ward" id="wardBtn" aria-label="Wardrobe"></button>
+  <div class="wardrobe hide" id="wardrobe">
+    <h3>Wardrobe</h3>
+    <div class="wsec"><b>Hood</b><div class="wrow" id="w-hood"></div></div>
+    <div class="wsec"><b>Top</b><div class="wrow" id="w-top"></div></div>
+    <div class="wsec"><b>Bottom</b><div class="wrow" id="w-bottom"></div></div>
+    <button class="ok" id="w-done">Done</button>
+  </div>
+  <div class="pills"><button class="btn snd" id="mus" aria-label="Music on or off"></button><button class="btn snd" id="snd" aria-label="Sound on or off"></button><div class="pill hide" id="cartPill"><span data-icon2="cart"></span><b id="cartN">0/15</b></div><div class="pill score"><span data-icon2="star"></span><b id="score">0</b></div><div class="pill"><span data-icon="coin"></span><b id="coins">0</b></div></div>
+  <div class="goals" id="goals"></div>
+  <div class="top hide" id="top">
+    <div class="timer"><span id="mname">Quack Catch</span><b id="tleft">0:20</b></div>
+    <div class="set" id="set"></div>
+  </div>
+  <div class="hint" id="hint"></div>
+  <button class="action hide" id="action"></button>
+  <div class="deck hide" id="deck">
+    <div class="stick" id="stick"><div class="base"></div><div class="shaft" id="shaft"></div><div class="ball" id="ball"></div></div>
+    <button class="grab" id="grab">GRAB</button>
+  </div>
+  <div class="joy hide" id="joy"><div class="knob" id="knob"></div></div>
+  <div class="toast" id="toast"></div>
+  <div class="modal hide" id="modal"><div class="card" id="card"></div></div>
+  <div class="loading" id="loading"><span data-icon="duck"></span>Loading…</div>
+</div>
+<script src="art.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

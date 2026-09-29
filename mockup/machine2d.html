@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Quack Catch 2D</title>
+<style>
+@font-face { font-family: Fredoka; src: url(fonts/Fredoka.ttf) format("truetype"); font-weight: 300 700; }
+body { margin: 0; background: #F8E6F1; font-family: Fredoka, sans-serif; }
+svg.m { display: block; width: 400px; height: 782px; margin: 10px auto; }
+</style></head>
+<body>
+<svg class="m" id="m" viewBox="0 -12 400 782"></svg>
+<script src="art.js"></script>
+<script>injectDefs(); document.getElementById("m").innerHTML = machineSVG();</script>
+</body></html>

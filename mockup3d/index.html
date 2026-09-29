@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Claw Friends 3D mockup</title>
+<style>
+  @font-face { font-family: Fredoka; src: url(fonts/Fredoka.ttf) format("truetype"); font-weight: 300 700; }
+  :root { --ink: #4A3A5E; --pink: #F48FB8; --pink2: #FFD4E5; --lav: #D9C2F0; --drop: 0 4px 0 rgba(74, 58, 94, .22); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    font-family: Fredoka, system-ui, sans-serif; color: var(--ink);
+    background: radial-gradient(120% 90% at 50% 38%, #FFF6FA 0%, #FBE6F1 50%, #EEDDF6 100%);
+    -webkit-user-select: none; user-select: none;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(circle, rgba(255, 255, 255, .85) 2px, transparent 2.6px) 0 0 / 28px 28px;
+  }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #hud > * { position: absolute; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .btn, .pill, .mpill, .pad button, .grab, .set { pointer-events: auto; }
+  .btn { top: 16px; left: 16px; width: 48px; height: 48px; padding: 0; border-radius: 15px; background: #fff; border: 3px solid var(--ink); box-shadow: var(--drop); display: grid; place-items: center; }
+  .btn svg { width: 28px; height: 28px; }
+  .pills { top: 16px; right: 16px; display: flex; gap: 8px; }
+  .pill { height: 46px; display: flex; align-items: center; gap: 6px; padding: 0 14px 0 6px; background: #fff; border: 3px solid var(--ink); border-radius: 999px; box-shadow: var(--drop); font-weight: 600; font-size: 20px; }
+  .pill svg { width: 30px; height: 30px; }
+  .mpill { top: 76px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 4px; background: #fff; border: 3px solid var(--ink); border-radius: 999px; box-shadow: var(--drop); white-space: nowrap; }
+  .mpill button { width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 3px solid var(--ink); background: var(--lav); display: grid; place-items: center; }
+  .mpill button svg { width: 18px; height: 18px; }
+  .mpill b { font-weight: 700; font-size: 19px; }
+  .mpill i { font-style: normal; font-size: 14px; opacity: .6; margin-right: 2px; }
+  .hint { top: 130px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(255, 255, 255, .8); border-radius: 999px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+  .hint svg { width: 18px; height: 18px; }
+  .set { left: 50%; transform: translateX(-50%); bottom: 184px; display: flex; align-items: center; gap: 2px; padding: 5px 12px 5px 8px; background: #fff; border: 3px solid var(--ink); border-radius: 20px; box-shadow: var(--drop); }
+  .set svg { width: 40px; height: 38px; }
+  .set svg.miss { filter: brightness(0); opacity: .16; }
+  .set b { font-weight: 700; font-size: 19px; margin-left: 6px; }
+  .pad { left: 16px; bottom: 22px; width: 156px; height: 156px; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); place-items: center; }
+  .pad button { width: 50px; height: 50px; padding: 0; border-radius: 15px; border: 3px solid var(--ink); background: var(--lav); box-shadow: var(--drop); display: grid; place-items: center; }
+  .pad button svg { width: 24px; height: 24px; }
+  .pad .u { grid-area: 1 / 2; } .pad .l { grid-area: 2 / 1; } .pad .r { grid-area: 2 / 3; } .pad .d { grid-area: 3 / 2; }
+  .pad .mid { grid-area: 2 / 2; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid var(--ink); }
+  .grab {
+    right: 22px; bottom: 36px; width: 116px; height: 116px; border-radius: 50%; border: 4px solid var(--ink);
+    background: radial-gradient(ellipse 30% 16% at 38% 25%, rgba(255, 255, 255, .75) 60%, transparent 64%), var(--pink);
+    box-shadow: inset 0 -10px 0 rgba(74, 58, 94, .16), 0 6px 0 rgba(74, 58, 94, .28);
+    color: #fff; font-weight: 700; font-size: 26px; letter-spacing: .5px; -webkit-text-stroke: 6px var(--ink); paint-order: stroke fill;
+  }
+  @media (min-aspect-ratio: 1/1) {
+    .mpill { top: 16px; }
+    .hint { top: 74px; }
+    .set { bottom: 28px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <button class="btn" aria-label="Game center" data-icon="home"></button>
+  <div class="pills">
+    <div class="pill"><span data-icon="coin"></span>12</div>
+    <div class="pill"><span data-icon="ticket"></span>3</div>
+  </div>
+  <div class="mpill"><button aria-label="Previous machine" data-icon="left"></button><b>Quack Catch</b><i>1/4</i><button aria-label="Next machine" data-icon="right"></button></div>
+  <div class="hint"><span data-icon="rotate"></span>Drag to look around</div>
+  <div class="set" id="set"></div>
+  <div class="pad">
+    <button class="u" aria-label="Back" data-icon="up"></button>
+    <button class="l" aria-label="Left" data-icon="left"></button>
+    <span class="mid"></span>
+    <button class="r" aria-label="Right" data-icon="right"></button>
+    <button class="d" aria-label="Forward" data-icon="down"></button>
+  </div>
+  <button class="grab">GRAB</button>
+</div>
+
+<script src="art.js"></script>
+<script>
+  injectDefs();
+  const chev = d => `<svg viewBox="-12 -12 24 24"><path d="${d}" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  ICON.up = chev("M-7,3 L0,-4 L7,3");
+  ICON.down = chev("M-7,-3 L0,4 L7,-3");
+  ICON.rotate = `<svg viewBox="-12 -12 24 24"><path d="M-8,-2 A8.5,5 0 1 0 0,-5" fill="none" stroke="${INK}" stroke-width="2.4" stroke-linecap="round"/><path d="M-3,-8.5 L1,-5 L-3,-1.5" fill="none" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  document.querySelectorAll("[data-icon]").forEach(el => el.innerHTML = ICON[el.dataset.icon]);
+  const have = new Set(["plain", "straw", "flower"]);
+  document.getElementById("set").innerHTML = DUCKS.map(d =>
+    `<svg viewBox="-12 -12 144 134" class="${have.has(d.id) ? "" : "miss"}"><use href="#duck-${d.id}"/></svg>`).join("") + `<b>${have.size}/6</b>`;
+</script>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+  "rapier": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.21.0/dist/rapier.mjs"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import RAPIER from "rapier";
+
+const Q = new URLSearchParams(location.search);
+const STILL = Q.has("still");
+if (Q.get("hud") === "0") document.getElementById("hud").style.display = "none";
+await document.fonts.load("700 40px Fredoka");
+
+const C = {
+  ink: 0x4A3A5E, white: 0xFFFFFF, pink1: 0xFFE3EE, pink2: 0xFFD4E5, pink3: 0xFDB8D5, pink5: 0xF48FB8,
+  lav: 0xD9C2F0, blue: 0xA9D3EA, gold: 0xFFD166, cream: 0xFFF1C2, orange: 0xFFB25E, green: 0xA8DB9A,
+  blush: 0xFFB3C6, straw: 0xF6D58E, hole: 0xC9B8E2,
+};
+
+// ---------- renderer, scene, camera ----------
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
+
+scene.add(new THREE.HemisphereLight(0xFFFFFF, 0xE2D4F4, 2.2));
+const sun = new THREE.DirectionalLight(0xFFFFFF, 1.6);
+sun.position.set(6, 14, 9);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 12, bottom: -3, near: 1, far: 40 });
+sun.shadow.bias = -0.0008;
+sun.shadow.normalBias = 0.02;
+sun.shadow.intensity = .45;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xFFFFFF, .45); fill.position.set(-7, 9, -10); scene.add(fill);
+
+// ---------- materials ----------
+const grad = new THREE.DataTexture(new Uint8Array([140, 210, 255]), 3, 1, THREE.RedFormat);
+grad.minFilter = grad.magFilter = THREE.NearestFilter;
+grad.needsUpdate = true;
+const cache = new Map();
+const toon = (c, opts = {}) => {
+  const k = c + JSON.stringify(opts);
+  if (!cache.has(k)) cache.set(k, new THREE.MeshToonMaterial({ color: c, gradientMap: grad, ...opts }));
+  return cache.get(k);
+};
+const flat = c => { const k = "flat" + c; if (!cache.has(k)) cache.set(k, new THREE.MeshBasicMaterial({ color: c })); return cache.get(k); };
+const glassMat = new THREE.MeshBasicMaterial({ color: 0xE3F2FA, transparent: true, opacity: .16, depthWrite: false, side: THREE.DoubleSide });
+const acrylMat = new THREE.MeshBasicMaterial({ color: 0xFFE3EE, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide });
+const shineMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: .45, depthWrite: false, side: THREE.DoubleSide });
+
+// Screen-space inverted-hull outline: same pixel width in every direction.
+const outlineU = { color: { value: new THREE.Color(C.ink) }, px: { value: 2 }, res: { value: new THREE.Vector2(1, 1) } };
+const outlineMat = new THREE.ShaderMaterial({
+  uniforms: outlineU, side: THREE.BackSide,
+  vertexShader: `
+    uniform float px; uniform vec2 res;
+    void main() {
+      vec4 clip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      vec3 n = normalize(normalMatrix * normal);
+      vec2 d = (projectionMatrix * vec4(n, 0.0)).xy * res;
+      float l = length(d);
+      if (l > 1e-6) clip.xy += (d / l) / res * 2.0 * px * clip.w;
+      gl_Position = clip;
+    }`,
+  fragmentShader: `
+    uniform vec3 color;
+    void main() {
+      gl_FragColor = vec4(color, 1.0);
+      #include <colorspace_fragment>
+    }`,
+});
+const outline = m => { const o = new THREE.Mesh(m.geometry, outlineMat); o.raycast = () => {}; m.add(o); return m; };
+
+// ---------- geometry helpers ----------
+const SPH = new THREE.SphereGeometry(1, 32, 20);
+const mesh = (geo, mat, x = 0, y = 0, z = 0, lined = true) => {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = true; m.receiveShadow = true;
+  return lined ? outline(m) : m;
+};
+const blob = (c, sx, sy, sz, x = 0, y = 0, z = 0) => { const m = mesh(SPH, toon(c), x, y, z); m.scale.set(sx, sy, sz); return m; };
+const dot = (c, sx, sy, sz) => { const m = mesh(SPH, flat(c), 0, 0, 0, false); m.castShadow = false; m.scale.set(sx, sy, sz); return m; };
+const rbox = (w, h, d, r, c, x, y, z) => mesh(new RoundedBoxGeometry(w, h, d, 4, r), typeof c === "number" ? toon(c) : c, x, y, z);
+const tube = (pts, r, mat, lined = true) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p))), 24, r, 10), mat, 0, 0, 0, lined);
+const Z = new THREE.Vector3(0, 0, 1);
+// Put a part on the front of an ellipsoid (semi-axes a,b,c) at (x,y), facing out.
+function stick(m, a, b, c, x, y, lift = 0) {
+  const z = c * Math.sqrt(Math.max(0, 1 - (x / a) ** 2 - (y / b) ** 2));
+  const n = new THREE.Vector3(x / (a * a), y / (b * b), z / (c * c)).normalize();
+  m.position.set(x, y, z).addScaledVector(n, lift);
+  m.quaternion.setFromUnitVectors(Z, n);
+  return m;
+}
+function canvasTex(w, h, draw, repeat) {
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  draw(cv.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
+  return t;
+}
+const INKS = "#4A3A5E";
+const label = (text, w, h, px, fill = "#fff") => canvasTex(w, h, (g) => {
+  g.font = `700 ${px}px Fredoka`; g.textAlign = "center"; g.textBaseline = "middle";
+  g.lineJoin = "round"; g.lineWidth = px * 0.24; g.strokeStyle = INKS; g.strokeText(text, w / 2, h / 2 + px * 0.05);
+  g.fillStyle = fill; g.fillText(text, w / 2, h / 2 + px * 0.05);
+});
+const plane = (tex, w, h, x, y, z, ry = 0, rx = 0) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  m.position.set(x, y, z); m.rotation.set(rx, ry, 0);
+  return m;
+};
+const heartPath = (g, cx, cy, s) => {
+  g.beginPath(); g.moveTo(cx, cy + s * .9);
+  g.bezierCurveTo(cx - s * 1.6, cy - s * .1, cx - s * .8, cy - s * 1.25, cx, cy - s * .45);
+  g.bezierCurveTo(cx + s * .8, cy - s * 1.25, cx + s * 1.6, cy - s * .1, cx, cy + s * .9); g.closePath();
+};
+
+// ---------- ducks ----------
+const DA = .5, DB = .47, DC = .46;
+function flowerMesh(petal) {
+  const f = new THREE.Group();
+  for (let i = 0; i < 5; i++) {
+    const a = i / 5 * Math.PI * 2;
+    f.add(blob(petal, .05, .05, .03, Math.cos(a) * .052, Math.sin(a) * .052, 0));
+  }
+  f.add(blob(0xFFE08A, .032, .032, .03, 0, 0, .012));
+  return f;
+}
+function makeDuck(v) {
+  const g = new THREE.Group();
+  g.add(blob(C.white, DA, DB, DC));
+  const wl = blob(C.white, .1, .2, .17, -.47, -.06, .04); wl.rotation.z = .35;
+  const wr = blob(C.white, .1, .2, .17, .47, -.06, .04); wr.rotation.z = -.35;
+  g.add(wl, wr, blob(C.orange, .13, .05, .12, -.16, -.43, .2), blob(C.orange, .13, .05, .12, .16, -.43, .2));
+  for (const s of [-1, 1]) {
+    g.add(stick(dot(C.ink, .045, .058, .025), DA, DB, DC, .17 * s, .08, .004));
+    g.add(stick(dot(C.white, .014, .014, .01), DA, DB, DC, .17 * s + .014, .1, .026));
+    g.add(stick(dot(C.blush, .085, .05, .014), DA, DB, DC, .29 * s, -.04, .003));
+  }
+  g.add(stick(blob(C.orange, .17, .085, .1), DA, DB, DC, 0, -.03, .03));
+  if (v === "plain") {
+    g.add(tube([[-.02, .45, 0], [-.06, .55, .02], [-.01, .6, .03], [.03, .56, .02]], .016, flat(C.ink), false));
+    g.add(tube([[.03, .46, 0], [.07, .55, 0], [.12, .56, .01], [.13, .52, .01]], .016, flat(C.ink), false));
+  }
+  if (v === "frog") {
+    const hood = mesh(new THREE.SphereGeometry(.54, 40, 20, 0, Math.PI * 2, 0, 1.28), toon(C.green));
+    hood.scale.set(1, .95, .93); hood.rotation.x = -.5; g.add(hood);
+    for (const s of [-1, 1]) {
+      g.add(blob(C.green, .11, .11, .11, .19 * s, .45, .08));
+      g.add(blob(C.white, .066, .066, .04, .19 * s, .47, .17));
+      const p = dot(C.ink, .034, .034, .02); p.position.set(.19 * s, .47, .205); g.add(p);
+    }
+  }
+  if (v === "straw") {
+    const hat = new THREE.Group();
+    hat.add(blob(C.straw, .47, .025, .47), blob(C.straw, .23, .17, .23, 0, .02, 0));
+    const band = mesh(new THREE.TorusGeometry(.222, .032, 12, 40), toon(C.pink3), 0, .05, 0); band.rotation.x = Math.PI / 2;
+    hat.add(band, blob(C.pink3, .06, .045, .035, .2, .08, .13), blob(C.pink3, .06, .045, .035, .27, .06, .08));
+    hat.position.set(.02, .38, -.02); hat.rotation.set(-.12, 0, .15); g.add(hat);
+  }
+  if (v === "flower") {
+    const cols = [C.pink3, C.lav, C.blue];
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2, y = .33, k = Math.sqrt(1 - (y / DB) ** 2);
+      const x = Math.sin(a) * DA * k, z = Math.cos(a) * DC * k;
+      const f = flowerMesh(cols[i % 3]);
+      f.position.set(x, y, z);
+      f.quaternion.setFromUnitVectors(Z, new THREE.Vector3(x / DA ** 2, y / DB ** 2, z / DC ** 2).normalize());
+      g.add(f);
+      const b = a + Math.PI / 8;
+      const leaf = blob(C.green, .04, .02, .025, Math.sin(b) * DA * k * 1.02, y + .02, Math.cos(b) * DC * k * 1.02);
+      g.add(leaf);
+    }
+  }
+  if (v === "sailor") {
+    g.add(blob(C.white, .21, .12, .21, 0, .46, -.02));
+    const band = mesh(new THREE.TorusGeometry(.2, .03, 12, 40), toon(C.blue), 0, .41, -.02); band.rotation.x = Math.PI / 2;
+    g.add(band, blob(C.pink3, .05, .05, .05, 0, .58, -.02));
+    const sh = new THREE.Shape(); sh.moveTo(-.14, .04); sh.lineTo(.14, .04); sh.lineTo(0, -.15); sh.closePath();
+    const tri = mesh(new THREE.ExtrudeGeometry(sh, { depth: .02, bevelEnabled: true, bevelThickness: .012, bevelSize: .014, bevelSegments: 3 }), toon(C.blue));
+    const tg = new THREE.Group(); tg.add(tri); g.add(stick(tg, DA, DB, DC, 0, -.2, .0));
+    g.add(stick(blob(C.pink3, .045, .045, .035), DA, DB, DC, 0, -.17, .03));
+  }
+  if (v === "crown") {
+    const ring = mesh(new THREE.TorusGeometry(.17, .04, 12, 36), toon(C.gold), 0, .46, 0); ring.rotation.x = Math.PI / 2; g.add(ring);
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * Math.PI * 2;
+      g.add(mesh(new THREE.ConeGeometry(.055, .16, 16), toon(C.gold), Math.sin(a) * .17, .55, Math.cos(a) * .17));
+      g.add(blob(C.cream, .026, .026, .026, Math.sin(a) * .17, .64, Math.cos(a) * .17));
+    }
+    g.add(blob(C.pink5, .04, .04, .025, 0, .47, .21));
+  }
+  return g;
+}
+
+// ---------- machine ----------
+const W = 5, D = 4.2, FLOOR = 2.4, GTOP = 6.4, IX = 2.28, IZ = 1.9;
+const machine = new THREE.Group(); scene.add(machine);
+const add = (...m) => machine.add(...m);
+
+const floorTex = canvasTex(64, 64, (g) => {
+  g.fillStyle = "#fff"; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = "#FFD9E8"; g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
+}, [9, 9]);
+const disc = mesh(new THREE.CylinderGeometry(7.6, 7.6, .32, 72), [toon(C.lav), new THREE.MeshBasicMaterial({ map: floorTex }), toon(C.lav)], 0, -.16, 0);
+disc.castShadow = false; scene.add(disc);
+const catcher = new THREE.Mesh(new THREE.CircleGeometry(7.55, 72), new THREE.ShadowMaterial({ color: C.ink, opacity: .16 }));
+catcher.rotation.x = -Math.PI / 2; catcher.position.y = .005; catcher.receiveShadow = true; scene.add(catcher);
+
+for (const s of [-1, 1]) add(blob(C.orange, .95, .26, .75, 1.25 * s, .1, 1.75));
+add(rbox(W + .1, .75, D + .1, .22, C.pink1, 0, .375, 0));
+add(rbox(W, 1.85, D, .26, C.white, 0, 1.52, 0));
+for (const s of [-1, 1]) { const w = blob(C.white, .14, .5, .72, s * 2.5, 1.5, -.2); w.rotation.set(.35, 0, s * .2); add(w); }
+// prize door, coin slot, heart sticker
+add(rbox(1.5, .8, .14, .08, C.white, -1.3, 1.3, D / 2 + .02), rbox(1.12, .42, .1, .08, C.pink3, -1.3, 1.3, D / 2 + .1));
+add(plane(label("PRIZE", 256, 96, 58), .88, .33, -1.3, 1.3, D / 2 + .16));
+add(rbox(.95, .8, .14, .08, C.white, 1.45, 1.3, D / 2 + .02), rbox(.1, .44, .06, .03, flat(C.ink), 1.66, 1.3, D / 2 + .1));
+const coin = blob(C.gold, .16, .16, .04, 1.27, 1.3, D / 2 + .12); add(coin);
+const heartTex = canvasTex(256, 256, (g) => {
+  heartPath(g, 128, 136, 78); g.fillStyle = "#F48FB8"; g.fill(); g.lineWidth = 16; g.strokeStyle = INKS; g.stroke();
+  g.beginPath(); g.ellipse(92, 104, 16, 10, -.6, 0, Math.PI * 2); g.fillStyle = "rgba(255,255,255,.8)"; g.fill();
+});
+add(plane(heartTex, .5, .5, .08, 1.3, D / 2 + .005));
+add(plane(heartTex, 1.3, 1.3, 0, 1.5, -D / 2 - .005, Math.PI));
+add(plane(label("CLAW FRIENDS", 1024, 170, 104, "#FDB8D5"), 4.3, .72, 0, (FLOOR + GTOP) / 2 + .2, -D / 2 - .005, Math.PI));
+
+// control panel
+add(rbox(W - .3, .42, 1.05, .18, C.pink2, 0, FLOOR + .1, D / 2 + .55));
+const lcd = canvasTex(256, 128, (g) => {
+  g.fillStyle = INKS; g.beginPath(); g.roundRect(0, 0, 256, 128, 28); g.fill();
+  g.font = "600 58px Fredoka"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#FFD4E5"; g.fillText("READY!", 128, 68);
+});
+add(rbox(1.08, .6, .12, .06, C.pink3, -1.5, FLOOR + .52, D / 2 + .38));
+add(plane(lcd, .92, .46, -1.5, FLOOR + .52, D / 2 + .45));
+add(blob(C.lav, .3, .05, .3, -.15, FLOOR + .31, D / 2 + .6), mesh(new THREE.CylinderGeometry(.06, .06, .42, 16), toon(C.lav), -.15, FLOOR + .5, D / 2 + .6));
+add(blob(C.pink5, .21, .21, .21, -.15, FLOOR + .76, D / 2 + .6));
+add(blob(C.white, .5, .07, .5, 1.45, FLOOR + .31, D / 2 + .58), blob(C.pink5, .4, .15, .4, 1.45, FLOOR + .38, D / 2 + .58));
+add(plane(label("GRAB", 256, 96, 62), .55, .2, 1.45, FLOOR + .54, D / 2 + .58, 0, -Math.PI / 2));
+
+// glass box
+for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(rbox(.34, GTOP - FLOOR, .34, .12, C.pink2, sx * (W / 2 - .12), (FLOOR + GTOP) / 2, sz * (D / 2 - .12)));
+add(rbox(W - .2, .16, .2, .06, C.pink2, 0, FLOOR + .08, D / 2 - .06));
+const ging = canvasTex(64, 64, (g) => {
+  g.fillStyle = "#F1F8FC"; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = "rgba(170,210,232,.5)"; g.fillRect(0, 0, 32, 64); g.fillRect(0, 0, 64, 32);
+}, [7, 6]);
+const inFloor = new THREE.Mesh(new THREE.PlaneGeometry(W - .3, D - .3), toon(C.white, { map: ging }));
+inFloor.rotation.x = -Math.PI / 2; inFloor.position.y = FLOOR + .005; inFloor.receiveShadow = true; add(inFloor);
+const backTex = ging.clone(); backTex.repeat.set(7, 6); backTex.needsUpdate = true;
+const back = new THREE.Mesh(new THREE.PlaneGeometry(W - .3, GTOP - FLOOR), toon(C.white, { map: backTex }));
+back.position.set(0, (FLOOR + GTOP) / 2, -D / 2 + .15); back.receiveShadow = true; add(back);
+add(rbox(W - .1, GTOP - FLOOR, .12, .05, C.white, 0, (FLOOR + GTOP) / 2, -D / 2 + .06));
+const glassF = new THREE.Mesh(new THREE.PlaneGeometry(W - .4, GTOP - FLOOR), glassMat); glassF.position.set(0, (FLOOR + GTOP) / 2, D / 2 - .1);
+const glassL = new THREE.Mesh(new THREE.PlaneGeometry(D - .4, GTOP - FLOOR), glassMat); glassL.position.set(-W / 2 + .1, (FLOOR + GTOP) / 2, 0); glassL.rotation.y = Math.PI / 2;
+const glassR = glassL.clone(); glassR.position.x = W / 2 - .1;
+add(glassF, glassL, glassR);
+for (const [x, y, w, h] of [[-1.55, 5.35, .22, 2.1], [-1.1, 5.2, .1, 1.5]]) {
+  const s = new THREE.Mesh(new THREE.PlaneGeometry(w, h), shineMat); s.position.set(x, y, D / 2 - .08); s.rotation.z = -.55; add(s);
+  const s2 = s.clone(); s2.position.set(-W / 2 + .08, y, -x * .7); s2.rotation.set(0, -Math.PI / 2, -.55); add(s2);
+}
+// prize chute (front-left corner)
+const CH = { x0: -IX, x1: -1.2, z0: .8, z1: IZ, h: 1.5 };
+const chuteR = new THREE.Mesh(new THREE.PlaneGeometry(CH.z1 - CH.z0, CH.h), acrylMat);
+chuteR.position.set(CH.x1, FLOOR + CH.h / 2, (CH.z0 + CH.z1) / 2); chuteR.rotation.y = Math.PI / 2;
+const chuteB = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.h), acrylMat);
+chuteB.position.set((CH.x0 + CH.x1) / 2, FLOOR + CH.h / 2, CH.z0);
+add(chuteR, chuteB);
+add(rbox(.1, .1, CH.z1 - CH.z0, .04, C.pink3, CH.x1, FLOOR + CH.h, (CH.z0 + CH.z1) / 2));
+add(rbox(CH.x1 - CH.x0, .1, .1, .04, C.pink3, (CH.x0 + CH.x1) / 2, FLOOR + CH.h, CH.z0));
+add(rbox(.1, CH.h, .1, .04, C.pink3, CH.x1, FLOOR + CH.h / 2, CH.z0));
+const arrowTex = canvasTex(128, 128, (g) => {
+  g.beginPath(); g.moveTo(34, 40); g.lineTo(94, 40); g.lineTo(64, 92); g.closePath();
+  g.fillStyle = "#F48FB8"; g.lineWidth = 12; g.lineJoin = "round"; g.strokeStyle = INKS; g.stroke(); g.fill();
+});
+add(plane(arrowTex, .5, .5, CH.x1 + .01, FLOOR + CH.h * .62, (CH.z0 + CH.z1) / 2, Math.PI / 2));
+const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0 - .05, CH.z1 - CH.z0 - .05), flat(C.hole));
+hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, FLOOR + .012, (CH.z0 + CH.z1) / 2); add(hole);
+
+// sign band + duck head
+add(rbox(W + .2, .62, D + .2, .2, C.pink5, 0, GTOP + .31, 0));
+add(plane(label("QUACK CATCH", 1024, 170, 116), 4.3, .72, 0, GTOP + .31, (D + .2) / 2 + .01));
+const HA = 2.75, HB = 2.45, HC = 2.35, HY = GTOP + .62;
+const head = new THREE.Group(); head.position.y = HY; add(head);
+const dome = mesh(new THREE.SphereGeometry(1, 56, 28, 0, Math.PI * 2, 0, Math.PI / 2), toon(C.white)); dome.scale.set(HA, HB, HC); head.add(dome);
+const chin = new THREE.Mesh(new THREE.CircleGeometry(1, 56), toon(C.white)); chin.rotation.x = Math.PI / 2; chin.scale.set(HA, HC, 1); head.add(chin);
+for (const s of [-1, 1]) {
+  head.add(stick(dot(C.ink, .19, .25, .08), HA, HB, HC, .95 * s, 1.25, .01));
+  head.add(stick(dot(C.white, .065, .065, .03), HA, HB, HC, .95 * s + .06, 1.34, .075));
+  head.add(stick(dot(C.blush, .44, .25, .05), HA, HB, HC, 1.75 * s, .72, .01));
+}
+head.add(stick(blob(C.orange, .62, .3, .36), HA, HB, HC, 0, .8, .12));
+head.add(tube([[-.08, 2.4, 0], [-.3, 2.95, .05], [.02, 3.2, .08], [.18, 2.95, .05]], .07, flat(C.ink), false));
+head.add(tube([[.15, 2.42, 0], [.42, 2.85, 0], [.72, 2.9, .03], [.78, 2.68, .03]], .07, flat(C.ink), false));
+
+// ---------- claw ----------
+function makeClaw() {
+  const g = new THREE.Group();
+  g.add(blob(C.pink3, .3, .24, .3));
+  g.add(mesh(new THREE.CylinderGeometry(.13, .16, .16, 24), toon(C.lav), 0, .25, 0));
+  for (let i = 0; i < 3; i++) {
+    const arm = new THREE.Group(); arm.rotation.y = i / 3 * Math.PI * 2 + Math.PI / 2;
+    arm.add(tube([[.14, -.12, 0], [.44, -.3, 0], [.55, -.62, 0], [.42, -.9, 0]], .06, toon(C.lav)));
+    arm.add(blob(C.pink3, .078, .078, .078, .42, -.9, 0));
+    g.add(arm);
+  }
+  return g;
+}
+
+// ---------- physics pile ----------
+await RAPIER.init();
+const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+const fixed = (hx, hy, hz, x, y, z) => world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(.8));
+fixed(2.6, .2, 2.2, 0, FLOOR - .2, 0);
+fixed(.2, 12, 2.3, -IX - .2, FLOOR + 12, 0); fixed(.2, 12, 2.3, IX + .2, FLOOR + 12, 0);
+fixed(2.6, 12, .2, 0, FLOOR + 12, -IZ - .2); fixed(2.6, 12, .2, 0, FLOOR + 12, IZ + .2);
+fixed((CH.x1 - CH.x0) / 2 + .05, 12, (CH.z1 - CH.z0) / 2 + .05, (CH.x0 + CH.x1) / 2, FLOOR + 12, (CH.z0 + CH.z1) / 2);
+
+let seed = 7;
+const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+const kinds = ["crown", "plain", "plain", "plain", "plain", "plain", "straw", "straw", "straw", "flower", "flower", "flower", "flower", "frog", "frog", "sailor", "sailor", "sailor"];
+for (let i = kinds.length - 1; i > 1; i--) { const j = 1 + Math.floor(rnd() * i); [kinds[i], kinds[j]] = [kinds[j], kinds[i]]; }
+const bodies = [];
+kinds.forEach((k, i) => {
+  let x, z;
+  if (k === "crown") { x = 1.85; z = 1.45; }
+  else do { x = (rnd() * 2 - 1) * (IX - .5); z = (rnd() * 2 - 1) * (IZ - .5); } while (x < CH.x1 + .45 && z > CH.z0 - .45);
+  const e = new THREE.Euler((rnd() - .5) * .7, (rnd() - .5) * 1.0, (rnd() - .5) * .7);
+  const q = new THREE.Quaternion().setFromEuler(e);
+  const rb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, FLOOR + .7 + i * 1.1, z)
+    .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setLinearDamping(.25).setAngularDamping(.6));
+  world.createCollider(RAPIER.ColliderDesc.roundCuboid(.27, .25, .24, .21).setFriction(.9).setRestitution(.05), rb);
+  bodies.push([k, rb]);
+});
+for (let i = 0; i < 900; i++) world.step();
+
+const ducks = [];
+for (const [k, rb] of bodies) {
+  const d = makeDuck(k), p = rb.translation(), r = rb.rotation();
+  d.position.set(p.x, p.y, p.z); d.quaternion.set(r.x, r.y, r.z, r.w);
+  machine.add(d); ducks.push([k, d]);
+}
+
+// claw over the lowest part of the pile, holding a Froggy
+const spots = [[.9, .1], [.7, -.6], [-.2, -.4], [1.2, -1.1], [.2, .5]];
+const height = ([x, z]) => Math.max(FLOOR, ...ducks.filter(([, d]) => Math.hypot(d.position.x - x, d.position.z - z) < .95).map(([, d]) => d.position.y + .47));
+const [CLX, CLZ] = spots.reduce((a, b) => height(b) < height(a) ? b : a);
+const HUBY = Math.min(5.55, Math.max(5.2, height([CLX, CLZ]) + 1.6));
+for (const s of [-1, 1]) add(rbox(.12, .12, D - .5, .04, C.lav, s * 2.18, GTOP - .22, 0));
+add(rbox(4.5, .12, .22, .05, C.lav, 0, GTOP - .3, CLZ));
+add(rbox(.5, .26, .42, .08, C.lav, CLX, GTOP - .45, CLZ));
+const cableLen = GTOP - .58 - (HUBY + .3);
+add(mesh(new THREE.CylinderGeometry(.035, .035, cableLen, 10), toon(C.lav), CLX, HUBY + .3 + cableLen / 2, CLZ));
+const claw = makeClaw(); claw.position.set(CLX, HUBY, CLZ); add(claw);
+const held = makeDuck("frog"); held.position.set(0, -1.0, 0); held.rotation.set(.08, .25, -.1); claw.add(held);
+
+// sparkles
+const sparkTex = canvasTex(128, 128, (g) => {
+  g.translate(64, 64); g.beginPath();
+  for (let i = 0; i < 4; i++) { g.rotate(Math.PI / 2); g.moveTo(0, -54); g.quadraticCurveTo(8, -8, 54, 0); }
+  g.fillStyle = "#FFE08A"; g.lineWidth = 9; g.strokeStyle = INKS; g.lineJoin = "round"; g.stroke(); g.fill();
+});
+const sparks = [];
+const spark = (x, y, z, s) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, transparent: true })); sp.position.set(x, y, z); sp.scale.setScalar(s); sp.userData.base = s; scene.add(sp); sparks.push(sp); };
+const royal = ducks.find(([k]) => k === "crown")[1].position;
+spark(royal.x - .45, royal.y + .55, royal.z + .25, .3); spark(royal.x + .1, royal.y + .8, royal.z + .1, .22); spark(royal.x - .1, royal.y + .25, royal.z + .55, .18);
+spark(-3.3, 8.9, .8, .5); spark(3.4, 9.6, -.4, .36); spark(-2.9, 3.4, 2.4, .3);
+
+// ---------- camera + controls ----------
+const target = new THREE.Vector3(0, 4.6, 0);
+const controls = new OrbitControls(camera, canvas);
+Object.assign(controls, { enableDamping: true, dampingFactor: .08, enablePan: false, minDistance: 10, maxDistance: 50, minPolarAngle: .25, maxPolarAngle: 1.52, autoRotate: !STILL, autoRotateSpeed: .7 });
+controls.addEventListener("start", () => controls.autoRotate = false);
+function fitDist() {
+  const t = Math.tan(camera.fov * Math.PI / 360);
+  const port = camera.aspect < 1;
+  return Math.max(11.2 / (port ? .47 : .76) / 2 / t, 7.2 / (port ? .8 : .56) / 2 / (t * camera.aspect));
+}
+function resize() {
+  const w = innerWidth, h = innerHeight, pr = renderer.getPixelRatio();
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  outlineU.res.value.set(w * pr, h * pr);
+  outlineU.px.value = (w < 600 ? 2.2 : 2.7) * pr;
+  target.y = camera.aspect < 1 ? 4.3 : 4.9;
+  controls.target.copy(target);
+}
+resize();
+addEventListener("resize", resize);
+{
+  const az = +(Q.get("az") ?? 24) * Math.PI / 180, el = +(Q.get("el") ?? 14) * Math.PI / 180, dist = +(Q.get("dist") ?? fitDist());
+  camera.position.set(target.x + dist * Math.cos(el) * Math.sin(az), target.y + dist * Math.sin(el), target.z + dist * Math.cos(el) * Math.cos(az));
+  controls.update();
+}
+
+const timer = new THREE.Timer();
+let frames = 0;
+renderer.setAnimationLoop(() => {
+  timer.update(); const t = timer.getElapsed();
+  if (!STILL) {
+    claw.rotation.z = Math.sin(t * 1.4) * .035;
+    sparks.forEach((s, i) => s.scale.setScalar(s.userData.base * (.85 + .2 * Math.sin(t * 3 + i * 1.7))));
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  if (++frames === 3) window.READY = true;
+});
+</script>
+</body>
+</html>

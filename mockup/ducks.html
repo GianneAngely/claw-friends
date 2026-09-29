@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Duck set</title>
+<style>
+  @font-face { font-family: Fredoka; src: url(fonts/Fredoka.ttf) format("truetype"); font-weight: 300 700; }
+  body { margin: 0; background: #FBF1F7; font-family: Fredoka, sans-serif; color: #4A3A5E; }
+  .row { display: flex; gap: 18px; padding: 24px; }
+  .cell { width: 150px; text-align: center; }
+  .cell svg { width: 150px; height: 140px; }
+  .cell b { display: block; font-weight: 600; font-size: 18px; }
+  .cell i { font-style: normal; font-size: 13px; opacity: .7; }
+</style>
+</head>
+<body>
+<div class="row" id="row"></div>
+<script src="art.js"></script>
+<script>
+injectDefs();
+document.getElementById("row").innerHTML = DUCKS.map(d =>
+  `<div class="cell"><svg viewBox="-12 -12 144 134"><use href="#duck-${d.id}"/></svg><b>${d.name}</b><i>${d.tier}</i></div>`).join("");
+</script>
+</body>
+</html>
