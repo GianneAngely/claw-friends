@@ -266,7 +266,7 @@ export function showControls(touch, onReplay) {
     [K("W A S D"), "Walk · move the claw"], [`${K("← → ↑ ↓")} or drag`, "Look around"], [`${K("E")} ${K("Space")}`, "Use · grab"],
     [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("Esc"), "Leave the machine"],
   ];
-  openCard(`<h2>Controls</h2><div class="keys">${rows.map(([k, d]) => `<div class="krow"><span>${k}</span><b>${d}</b></div>`).join("")}</div>
+  openCard(`<h2>Controls</h2><div class="keylist">${rows.map(([k, d]) => `<div class="krow"><span>${k}</span><b>${d}</b></div>`).join("")}</div>
     <button class="replay" id="k-replay">Replay the tutorial</button><button class="ok">Close</button>`, true);
   $("k-replay").addEventListener("click", () => { $("modal").classList.add("hide"); onReplay(); });
 }

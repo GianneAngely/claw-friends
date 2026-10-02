@@ -113,15 +113,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 /* wardrobe */
-.btn.ward { top: 74px; }
+.btn.ward { top: 74px; left: 72px; }
 .btn.ward svg { width: 30px; height: 30px; }
-.btn.keys { top: 74px; left: 72px; }
+.btn.keys { top: 74px; left: 16px; }
 .btn.keys svg { width: 30px; height: 30px; }
-.keys { display: grid; gap: 6px; margin: 8px 0 12px; text-align: left; }
+.keylist { display: grid; gap: 6px; margin: 8px 0 12px; text-align: left; }
 .krow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 14px; background: #FBF1F7; }
 .krow span { flex: none; font-weight: 600; font-size: 14px; }
 .krow b { font-weight: 500; font-size: 14px; text-align: right; }
-.keys kbd, .tut kbd { display: inline-block; min-width: 22px; padding: 0 5px; margin: 0 1px; border: 2px solid var(--ink); border-bottom-width: 3px; border-radius: 6px; background: #fff; font: 600 12px/18px Fredoka, sans-serif; text-align: center; }
+.keylist kbd, .tut kbd { display: inline-block; min-width: 22px; padding: 0 5px; margin: 0 1px; border: 2px solid var(--ink); border-bottom-width: 3px; border-radius: 6px; background: #fff; font: 600 12px/18px Fredoka, sans-serif; text-align: center; }
 .card .replay { display: block; margin: 0 auto 10px; border: none; background: none; font-weight: 600; font-size: 15px; color: #E0529A; text-decoration: underline; }
 .wardrobe {
   right: 16px; top: 50%; transform: translateY(-50%); width: min(350px, 44vw); max-height: calc(100% - 32px); overflow: auto;
