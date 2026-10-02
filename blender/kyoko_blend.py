@@ -52,8 +52,7 @@ for p in parts:
         for loop in me.loops: uvl.data[loop.index].uv = p["uv"][loop.vertex_index]
     import bmesh
     bm = bmesh.new(); bm.from_mesh(me)
-    if p["name"] == "Shell":
-        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    # (no welding here: it would renumber the vertices after the weights were made; gen_geometry.py welds)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(me); bm.free()
     ob = bpy.data.objects.new(p["name"], me); col.objects.link(ob)
