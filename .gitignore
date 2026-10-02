@@ -2,3 +2,4 @@ node_modules/
 game/dist/
 .DS_Store
 __pycache__/
+previews/
