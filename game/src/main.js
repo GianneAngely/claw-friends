@@ -136,7 +136,7 @@ async function main() {
   }
 
   // ---------- the shopping cart ----------
-  const cart = { obj: cartModel(CART_S), attached: false, meshes: [] };
+  const cart = { obj: cartModel(CART_S), attached: false, hidden: !!save.cartHidden, meshes: [] };
   cart.obj.root.visible = false; scene.add(cart.obj.root);
   function layoutCart() {
     for (const m of cart.meshes) m.removeFromParent();
@@ -145,8 +145,8 @@ async function main() {
     const smalls = save.cart.filter(it => !it.big), bigs = save.cart.filter(it => it.big);
     for (const it of smalls) {
       const p = PLUSH_BY_KEY[it.key]; if (!p) continue;
-      const m = makePlush(p.species, p.acc), L = Math.floor(slot / 6), i = slot % 6;
-      m.scale.setScalar(.5); m.position.set((i % 3 - 1) * .44, .36 + L * .4, (Math.floor(i / 3) - .5) * .46); m.rotation.y = Math.PI + (i - 2.5) * .2;
+      const m = makePlush(p.species, p.acc), L = Math.floor(slot / 6), i = slot % 6, row = Math.floor(i / 2) - 1;
+      m.scale.setScalar(.5); m.position.set((i % 2 - .5) * .48, .3 + L * .4 + row * .06, row * .46); m.rotation.y = Math.PI + (i - 2.5) * .2;
       cart.obj.basket.add(m); cart.meshes.push(m); slot++;
     }
     bigs.forEach((it, i) => {
@@ -161,10 +161,25 @@ async function main() {
   const cartUsed = () => save.cart.filter(it => !it.big).length + save.cart.filter(it => it.big).length * 3;
   function attachCart() {
     cart.attached = true; save.hasCart = true;
-    cart.obj.root.visible = true;
+    cart.obj.root.visible = !cart.hidden;
     kid.root.add(cart.obj.root); cart.obj.root.position.set(0, 0, CART_Z); cart.obj.root.rotation.set(0, 0, 0);
-    setKidCollider(true);
-    layoutCart();
+    setKidCollider(!cart.hidden);
+    layoutCart(); ui.setCartHidden(cart.hidden);
+  }
+  // put the cart away (H or the cart counter) so it can't bump into things; its friends stay in it
+  function toggleCart() {
+    if (!cart.attached) { ui.toast("No cart yet · they're by the door"); return; }
+    if (cart.hidden) {
+      // only bring it back where there's room in front of her
+      const q = new THREE.Quaternion().setFromAxisAngle(UP, kidYaw), p = kidBody.translation();
+      const c = new THREE.Vector3(0, 0, 1.3).applyQuaternion(q).add(new THREE.Vector3(p.x, p.y, p.z));
+      const r = q.clone().multiply(new THREE.Quaternion(Math.SQRT1_2, 0, 0, Math.SQRT1_2));
+      if (world.intersectionWithShape(c, r, new RAPIER.Capsule(1.3, 1.2), undefined, G_KID, kidColRef, kidBody)) { ui.toast("No room for the cart here"); return; }
+    }
+    cart.hidden = !cart.hidden; save.cartHidden = cart.hidden; persist();
+    cart.obj.root.visible = !cart.hidden; setKidCollider(!cart.hidden); ui.setCartHidden(cart.hidden);
+    ui.toast(cart.hidden ? "Cart put away · your friends stay in it" : "Cart's back!");
+    tutFlags.toggled = true;
   }
   function parkCart(pos, yaw) {
     scene.attach(cart.obj.root);
@@ -372,6 +387,7 @@ async function main() {
     if (near.kind === "machine") enterMachine(near.g);
     else if (near.kind === "corral") {
       if (cart.attached) { ui.toast("You already have a cart"); return; }
+      cart.hidden = false; save.cartHidden = false;
       attachCart(); audio.sfx.cart(); goal("cart");
     } else if (near.kind === "cashier") {
       cashierNpc.setFace("happy", 1.5);
@@ -471,6 +487,7 @@ async function main() {
     if (kidVel.lengthSq() > .3) kidYaw += angDiff(kidYaw, Math.atan2(kidVel.x, kidVel.z)) * Math.min(1, dt * 11);
     if (ev.action && !ui.isModal()) doAction();
     if (ev.wardrobe) openWardrobe();
+    if (ev.hideCart && !ui.isModal()) toggleCart();
   }
   function machineStep(dt, ev) {
     const g = active;
@@ -489,11 +506,52 @@ async function main() {
       }
     }
     if (TEST === "claw" && inp.grab && g.state === "idle") { startRound(); inp.grab = false; }
-    if (inp.grab) grabPress = 1;
+    if (inp.grab) { grabPress = 1; tutFlags.dropped = true; }
     g.m.tiltStick(inp.x, inp.z);
     g.step(dt, inp);
     ui.setTimer(g.timer, g.state === "aim");
   }
+
+  // ---------- first-run tutorial: teaches the controls step by step (instead of a permanent hint line) ----------
+  const TOUCH = matchMedia("(pointer: coarse)").matches, KB = s => s.split(" ").map(k => `<kbd>${k}</kbd>`).join("");
+  const TUT = [
+    { id: "walk", title: "Walk around", text: TOUCH ? "Drag the joystick to walk." : `Press ${KB("W A S D")} to walk.` },
+    { id: "look", title: "Look around", text: TOUCH ? "Drag the screen to turn the camera." : `Turn the camera with the ${KB("← →")} arrow keys, or drag the screen.` },
+    { id: "cart", title: "Grab a cart", text: `The carts are by the door. Walk up to them and ${TOUCH ? "tap <b>Take a cart</b>" : `press ${KB("E")}`}.` },
+    { id: "hide", title: "Cart in the way?", text: `${TOUCH ? "Tap the cart counter" : `Press ${KB("H")} or click the cart counter`} to put it away, and again to bring it back. Your friends stay inside.` },
+    { id: "machine", title: "Play a claw machine", text: `Walk up to a machine and ${TOUCH ? "tap <b>Play</b>" : `press ${KB("E")}`}. One play costs 1 coin.` },
+    { id: "claw", title: "Catch a friend!", text: TOUCH ? "Move the claw with the stick, then press <b>GRAB</b>." : `Move the claw with ${KB("W A S D")}, then press ${KB("Space")} to grab.` },
+    { id: "ward", title: "Dress up", text: `${TOUCH ? "Tap the shirt button" : `Press ${KB("C")} or click the shirt button`} any time to change your tee and shorts.`, ok: true },
+  ];
+  const tutFlags = { toggled: false, dropped: false };
+  let tut = null;
+  const camAz = () => Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z);
+  function tutGo(i) {
+    if (i >= TUT.length) return tutEnd("You're all set! Have fun");
+    const st = TUT[i], p = kid.root.position;
+    tut = { i, pos: p.clone(), az: camAz(), turned: 0 };
+    tutFlags.toggled = tutFlags.dropped = false;
+    ui.showTut(st, i, TUT.length, () => tutEnd("Tutorial skipped"), st.ok ? () => tutGo(i + 1) : null, mode === "walk" || mode === "machine");
+  }
+  function tutEnd(msg) {
+    tut = null; save.tutorial = true; persist();
+    ui.hideTut(mode === "walk"); ui.toast(msg, 1800);
+  }
+  function tutTick() {
+    if (!tut || ui.isModal()) return;
+    const az = camAz(); tut.turned += Math.abs(angDiff(tut.az, az)); tut.az = az;
+    const done = {
+      walk: () => tut.pos.distanceTo(kid.root.position) > 3,
+      look: () => tut.turned > .8,
+      cart: () => cart.attached,
+      hide: () => tutFlags.toggled,
+      machine: () => mode === "machine",
+      claw: () => tutFlags.dropped,
+      ward: () => mode === "wardrobe",
+    }[TUT[tut.i].id]();
+    if (done) tutGo(tut.i + 1);
+  }
+  if (!save.tutorial && !TEST) tutGo(0);
 
   // ---------- loop ----------
   let last = performance.now(), accum = 0, frames = 0;
@@ -526,11 +584,12 @@ async function main() {
   if (TEST === "wardrobe") openWardrobe();
   ui.ready();
   renderer.setAnimationLoop(now => {
-    const dt = Math.min(.1, (now - last) / 1000); last = now;
-    const ev = ui.consume();
+    const dt = Math.max(0, Math.min(.1, (now - last) / 1000)); last = now;   // rAF clocks can start behind performance.now()
     let steps = 0;
     if (TEST) steps = TEST === "claw" ? 24 : 6;
     else { accum += dt; while (accum >= STEP && steps < 4) { accum -= STEP; steps++; } }
+    const ev = steps > 0 ? ui.consume() : {};   // presses wait for the next physics step instead of being dropped
+    if (ev.keys && !ui.isModal()) ui.showControls(TOUCH, () => tutGo(0));
     if (window.FREEZE) {
       steps = 0;
       if (!window.FROZEN) {
@@ -565,7 +624,8 @@ async function main() {
     stepFlights(dt);
     cashierNpc.animate(dt, 0); swapNpc.animate(dt, 0);
     room.update(dt, kid.root.position, camera.position);
-    kid.animate(dt, mode === "walk" ? kidSpeed : 0, mode === "machine" ? "reach" : cart.attached && mode === "walk" ? "push" : "walk");
+    kid.animate(dt, mode === "walk" ? kidSpeed : 0, mode === "machine" ? "reach" : cart.attached && !cart.hidden && mode === "walk" ? "push" : "walk");
+    tutTick(dt);
     audio.levels(active ? active.motor : 0, active ? active.winch : 0);
     if (active) { grabPress = Math.max(0, grabPress - dt * 4); active.m.pressGrab(grabPress); }
     const look = ui.lookDir();
@@ -594,7 +654,7 @@ async function main() {
       window.TEST_RESULT = { rounds: testRounds, wins: window.WINS || 0 }; window.TEST_DONE = true;
     }
   });
-  window.CF = { games, get kid() { return kid; }, camera, controls, save, scene, renderer };
+  window.CF = { games, get kid() { return kid; }, get mode() { return mode; }, camera, controls, save, scene, renderer };
 }
 
 main();

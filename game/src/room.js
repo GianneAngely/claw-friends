@@ -4,6 +4,7 @@
 import * as THREE from "three";
 import { C, INKS, toon, flat, mesh, blob, rbox, tube, canvasTex, label, plane, bake, sparkle } from "./gfx.js";
 import { makePlush, PLUSH } from "./plush.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 export const G_WORLD = (0x0001 << 16) | 0x0002;
 export const ROOM = { x0: -22, x1: 22, z0: -21, z1: 19 };
@@ -138,15 +139,15 @@ function wallPlane(w, h, tex, rx, ry, x, y, z, ry2) {
   m.userData.noBake = true;
   return m;
 }
-function balloons(x, z, cols) {
+// a balloon bunch tied to a prop: the strings run from one knot up to the balloons floating around (cx, cz)
+function balloons([tx, ty, tz], [cx, cz], cols) {
   const g = new THREE.Group();
   cols.forEach((c, i) => {
-    const a = i / cols.length * Math.PI * 2, bx = Math.cos(a) * .55, bz = Math.sin(a) * .55, by = 5.2 + (i % 2) * .6;
+    const a = i / cols.length * Math.PI * 2, bx = cx + Math.cos(a) * .55, bz = cz + Math.sin(a) * .55, by = 5.2 + (i % 2) * .6;
     g.add(blob(c, .55, .66, .55, bx, by, bz));
-    g.add(tube([[0, 2.2, 0], [bx * .5, 3.6, bz * .5], [bx, by - .66, bz]], .025, flat(C.ink), false));
+    g.add(tube([[tx, ty, tz], [(tx + bx) / 2, (ty + by) / 2 - .2, (tz + bz) / 2], [bx, by - .66, bz]], .025, flat(C.ink), false));
   });
-  g.add(rbox(.9, .5, .9, .15, C.pink3, 0, 2.1, 0));
-  g.position.set(x, 0, z);
+  g.add(blob(C.ink, .07, .07, .07, tx, ty, tz));
   return g;
 }
 function plant(x, z, s = 1) {
@@ -230,17 +231,59 @@ function counter(color, text, w = 5.4) {
   g.add(plane(label(text, 900, 170, 120), 4.2, .8, -.6, 6.3, 0, Math.PI / 2));
   return g;
 }
+// a wire shopping trolley: a tapered wire basket (deeper at the back) on a low frame with a tray and four casters,
+// a push handle with a pink grip at the back (-z). `basket` is where prizes sit: its origin is the basket floor centre.
 function cartModel(scale = 1) {
-  const g = new THREE.Group(), pink = C.pink3;
-  const basket = new THREE.Group(); basket.position.y = .95; g.add(basket);
-  basket.add(rbox(1.5, .08, 1.1, .03, pink, 0, 0, 0));
-  for (const s of [-1, 1]) { basket.add(rbox(.08, .7, 1.1, .03, pink, s * .75, .35, 0)); basket.add(rbox(1.5, .7, .08, .03, pink, 0, .35, s * .55)); }
-  basket.add(rbox(1.6, .1, .12, .04, C.white, 0, .72, .56), rbox(1.6, .1, .12, .04, C.white, 0, .72, -.56));
-  g.add(rbox(.1, .9, .1, .04, C.lav2, -.62, .5, -.46), rbox(.1, .9, .1, .04, C.lav2, .62, .5, -.46), rbox(.1, .9, .1, .04, C.lav2, -.62, .5, .46), rbox(.1, .9, .1, .04, C.lav2, .62, .5, .46));
-  for (const [x, z] of [[-.62, -.46], [.62, -.46], [-.62, .46], [.62, .46]]) { const wh = mesh(new THREE.CylinderGeometry(.13, .13, .1, 16), toon(0x4A3A5E), x, .13, z); wh.rotation.z = Math.PI / 2; g.add(wh); }
-  // handle toward the pusher (-z)
-  g.add(tube([[-.7, 1.6, -.75], [-.7, 1.75, -.9], [.7, 1.75, -.9], [.7, 1.6, -.75]], .05, toon(C.lav2)));
-  const grip = mesh(new THREE.CylinderGeometry(.09, .09, 1.2, 12), toon(C.pink5), 0, 1.76, -.9); grip.rotation.z = Math.PI / 2; g.add(grip);
+  const g = new THREE.Group(), UP = new THREE.Vector3(0, 1, 0);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const rod = (list, r) => (a, b) => {
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A);
+    const geo = new THREE.CylinderGeometry(r, r, d.length(), r > .03 ? 8 : 5);
+    geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, d.normalize()));
+    geo.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+    list.push(geo);
+  };
+  const thin = [], thick = [], wire = rod(thin, .022), bar = rod(thick, .045);
+  // basket: back is wider and taller, the floor rises toward the front
+  const BK = { z: -.78, x: .58, y0: .98, y1: 1.86 }, FR = { z: .8, x: .47, y0: 1.16, y1: 1.8 };
+  const at = (t, side, v) => [side * lerp(BK.x, FR.x, t), lerp(lerp(BK.y0, FR.y0, t), lerp(BK.y1, FR.y1, t), v), lerp(BK.z, FR.z, t)];
+  for (const s of [-1, 1]) {
+    for (let i = 1; i < 12; i++) wire(at(i / 12, s, 0), at(i / 12, s, 1));
+    for (const v of [.35, .7]) wire(at(0, s, v), at(1, s, v));
+  }
+  for (let i = 1; i < 7; i++) { const x = lerp(-FR.x, FR.x, i / 7); wire([x, FR.y0, FR.z], [x, FR.y1, FR.z]); }
+  for (const v of [.35, .7]) { const y = lerp(FR.y0, FR.y1, v); wire([-FR.x, y, FR.z], [FR.x, y, FR.z]); }
+  for (let i = 1; i < 8; i++) { const u = i / 8 * 2 - 1; wire([u * BK.x, BK.y0, BK.z], [u * FR.x, FR.y0, FR.z]); }
+  for (const t of [.33, .66]) { const p = at(t, 1, 0); wire([-p[0], p[1], p[2]], p); }
+  for (let i = 1; i < 8; i++) { const x = lerp(-BK.x, BK.x, i / 8); wire([x, BK.y0, BK.z], [x, BK.y1, BK.z]); }   // fold-up child seat gate
+  for (let i = 0; i <= 5; i++) { const x = lerp(-.34, .34, i / 5); wire([x, .36, -.5], [x, .36, .58]); }          // lower tray
+  // rims and frame
+  const corner = (t, s, v) => at(t, s, v);
+  for (const v of [0, 1]) {
+    bar(corner(0, -1, v), corner(1, -1, v)); bar(corner(0, 1, v), corner(1, 1, v));
+    bar(corner(1, -1, v), corner(1, 1, v)); bar(corner(0, -1, v), corner(0, 1, v));
+  }
+  for (const t of [0, 1]) for (const s of [-1, 1]) bar(corner(t, s, 0), corner(t, s, 1));
+  const base = { bz: -.62, fz: .7, bx: .42, fx: .36, y: .32 };
+  for (const s of [-1, 1]) {
+    bar([s * base.bx, base.y, base.bz], [s * base.fx, base.y, base.fz]);                   // base rails
+    bar([s * base.bx, base.y, base.bz], [s * BK.x, BK.y0, BK.z]);                           // back legs up to the basket
+    bar([s * BK.x, BK.y1, BK.z], [s * .6, 2.02, -.93]);                                     // handle arms
+    bar([s * base.fx, base.y, base.fz - .1], [s * FR.x * .92, FR.y0, FR.z - .12]);         // front struts
+  }
+  bar([-base.bx, base.y, base.bz], [base.bx, base.y, base.bz]); bar([-base.fx, base.y, base.fz], [base.fx, base.y, base.fz]);
+  const wireMesh = new THREE.Mesh(mergeGeometries(thin), toon(0xE4DEF2)); wireMesh.castShadow = true; g.add(wireMesh);
+  g.add(mesh(mergeGeometries(thick), toon(0xCBC1E6)));
+  // pink grip, corner caps, the little seat plate
+  const grip = mesh(new THREE.CylinderGeometry(.075, .075, 1.26, 14), toon(C.pink5), 0, 2.02, -.93); grip.rotation.z = Math.PI / 2; g.add(grip);
+  for (const s of [-1, 1]) g.add(rbox(.13, .1, .13, .04, C.pink5, s * FR.x, FR.y1, FR.z));
+  g.add(rbox(.62, .07, .2, .03, C.pink5, 0, 1.5, BK.z - .02));
+  // casters
+  for (const [x, z] of [[-base.bx, base.bz], [base.bx, base.bz], [-base.fx, base.fz], [base.fx, base.fz]]) {
+    g.add(rbox(.06, .14, .1, .02, 0xCBC1E6, x, .24, z));
+    const wh = mesh(new THREE.CylinderGeometry(.12, .12, .08, 16), toon(0x4A3A5E), x, .13, z); wh.rotation.z = Math.PI / 2; g.add(wh);
+  }
+  const basket = new THREE.Group(); basket.position.set(0, (BK.y0 + FR.y0) / 2, 0); g.add(basket);
   g.scale.setScalar(scale);
   return { root: g, basket };
 }
@@ -407,8 +450,9 @@ export function buildRoom(scene, R, world) {
     pedestals.push({ sp, x, q, mesh: null });
   }
 
-  st.add(balloons(-12, -19.6, [C.pink5, C.yellow, C.mint]), balloons(12, -19.6, [C.blue, C.pink3, C.lav2]));
-  st.add(balloons(-4.8, 17.6, [C.mint, C.pink5]), balloons(4.8, 17.6, [C.yellow, C.blue]));
+  // balloons tied to the outer big-friend pedestals and to the cart corral by the door
+  st.add(balloons([-9.62, .88, -18.42], [-10.4, -19], [C.pink5, C.yellow, C.mint]), balloons([9.62, .88, -18.42], [10.4, -19], [C.blue, C.pink3, C.lav2]));
+  st.add(balloons([CORRAL.x - 1, 1.3, CORRAL.z - 1.65], [CORRAL.x - 1.5, CORRAL.z - 2.1], [C.mint, C.pink5, C.yellow]));
   st.add(plant(-20.6, -19.8), plant(20.6, -19.8), plant(-20.6, 8.8, .9), plant(20.6, 8.8, .9));
   scene.add(bake(st));
 
