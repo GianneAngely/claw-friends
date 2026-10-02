@@ -19,7 +19,7 @@ import * as audio from "./sfx.js";
 const Q = new URLSearchParams(location.search);
 const TEST = Q.get("test");
 const G_KID = (0x0002 << 16) | 0x0001;
-const STEP = 1 / 60, WALK = 7.5, KID_Y = 2.0, ROUNDS = +(Q.get("rounds") || 12), CART_CAP = 15, CART_Z = 2.2, CART_S = .82;
+const STEP = 1 / 60, WALK = 6.5, KID_Y = 2.0, ROUNDS = +(Q.get("rounds") || 12), CART_CAP = 15, CART_Z = 2.2, CART_S = .82;
 const POINTS = { common: 10, uncommon: 30, rare: 100 };
 const SPECIES_BY_ID = Object.fromEntries(SPECIES.map(s => [s.id, s]));
 
