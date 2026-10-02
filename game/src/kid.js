@@ -200,7 +200,7 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       dt = Math.min(dt, .05);
       t += dt;
       amt = THREE.MathUtils.lerp(amt, speed, Math.min(1, dt * 7));
-      phase += dt * (5 + 8.8 * amt);                      // ~4.4 quick little steps a second at full speed
+      phase += dt * (5 + 6.9 * amt);                      // ~3.8 steps a second at full speed
       const pL = (phase / (2 * Math.PI)) % 1, pR = (pL + .5) % 1, idle = 1 - amt;
       const TAU = 2 * Math.PI, cw = Math.cos(TAU * pL);
       const yaw = root.rotation.y, yawRaw = prevYaw === null ? 0 : Math.atan2(Math.sin(yaw - prevYaw), Math.cos(yaw - prevYaw)) / Math.max(dt, 1e-3); prevYaw = yaw;
@@ -219,21 +219,19 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       const hop = happy ? Math.abs(Math.sin(t * 8.5)) * .22 : 0;
       const bN = (1 - Math.cos(2 * TAU * (pL - .07))) / 2;
       const bob = (bN * .1 + .02) * amt + hop;
-      turnS += (THREE.MathUtils.clamp(-yawRate * .025, -.08, .08) * amt - turnS) * Math.min(1, dt * 8);   // eases into turns
+      turnS += (THREE.MathUtils.clamp(-yawRate * .012, -.04, .04) * amt - turnS) * Math.min(1, dt * 8);   // eases into turns
       const turn = turnS;
-      const roll = -.075 * Math.cos(TAU * (pL - .3)) * amt + turn;
-      rot("root", "z", roll); rot("root", "x", .06 * amt);
+      const roll = -.02 * Math.cos(TAU * (pL - .3)) * amt + turn;   // (a person stays upright: a big rock read as a wobbling toy)
+      rot("root", "z", roll); rot("root", "x", .035 * amt);
       rot("hips", "y", -.1 * cw * amt);
       rot("chest", "y", .18 * cw * amt); rot("chest", "x", .025 * Math.sin(t * 2.3) * idle + (sad ? .05 : 0));
-      rot("head", "y", -.08 * cw * amt);
-      rot("head", "z", -roll * .6 + .05 * Math.sin(t * .9) * idle);
+      rot("head", "y", -.08 * cw * amt + THREE.MathUtils.clamp(yawRate * .05, -.3, .3));   // the head leads into a turn
+      rot("head", "z", -roll + .04 * Math.sin(t * .9) * idle);
       rot("head", "x", -.04 * amt + .03 * (bN - .5) * amt + (sad ? .08 : 0) + .02 * Math.sin(t * 1.7) * idle);
       // the weight moves over the standing foot (a small side-to-side shift) and the free side of the pelvis dips
       const shift = .035 * Math.cos(TAU * (pL - .3)) * amt;
       rot("hips", "z", .05 * Math.cos(TAU * (pL - .3)) * amt);
       B.root.b.position.copy(B.root.p0); B.root.b.position.y += bob; B.root.b.position.x += shift;
-      const squash = (bN - .55) * .06 * amt + .012 * Math.sin(t * 2.2) * idle;
-      model.scale.set(1 - squash * .5, 1 + squash, 1 - squash * .5);
       // arms
       for (const side of ["L", "R"]) {
         const g = side === "L" ? 1 : -1;
@@ -272,9 +270,12 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       const cape = spring(sp.cape, .16 * amt, dt, 45, 5, -vy * .2 * dt);
       const capeZ = spring(sp.capeZ, THREE.MathUtils.clamp(-yawRate * .04, -.2, .2) - roll * .7, dt, 26, 3.6);   // the hem swings after the body
       const flare = spring(sp.flare, 0, dt, 75, 6, Math.max(0, -vy) * .15 * dt);
-      rot("cape_B", "x", cape + flare * .4); rot("cape_B", "z", capeZ);
-      rot("cape_L", "x", cape * .6 - .05 * Math.sin(TAU * pL) * amt); rot("cape_L", "z", capeZ * .6 + flare * .3);
-      rot("cape_R", "x", cape * .6 - .05 * Math.sin(TAU * pR) * amt); rot("cape_R", "z", capeZ * .6 - flare * .3);
+      // the cloak's hem swings a beat behind the weight shift (cloth follows the body), and each side is pushed a little
+      // forward by the knee under it
+      const hem = -.05 * Math.cos(TAU * (pL - .3) - 1.1) * amt;
+      rot("cape_B", "x", cape + flare * .4); rot("cape_B", "z", capeZ + hem);
+      rot("cape_L", "x", cape * .6 - .07 * Math.sin(TAU * pL) * amt); rot("cape_L", "z", (capeZ + hem) * .6 + flare * .3);
+      rot("cape_R", "x", cape * .6 - .07 * Math.sin(TAU * pR) * amt); rot("cape_R", "z", (capeZ + hem) * .6 - flare * .3);
       // face: expression timer and blinking
       if (exprT > 0) { exprT -= dt; if (exprT <= 0) expr = "idle"; }
       blinkT -= dt;
