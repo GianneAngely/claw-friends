@@ -38,7 +38,7 @@ ys = np.array(sorted(prof))
 L = np.array([prof[y]["L"] for y in ys], float); R = np.array([prof[y]["R"] for y in ys], float)
 col = np.array(Image.open(REF).convert("L"))
 cap_top = min(8 + np.nonzero(col[8:, c] < 120)[0][0] for c in range(262, 322))   # hood top outline between the ears (skip the frame)
-hem_y = 710.0      # the cape's hem; the bottom stays open, the legs come out below it
+hem_y = 716.0      # the egg's bottom point; the front opening runs down to it, the legs come out in front
 row_y = np.r_[np.arange(cap_top, hem_y - 3, 6.0), hem_y]
 a_meas = np.interp(row_y, ys, (R - L) / 2); c_meas = np.interp(row_y, ys, (R + L) / 2)
 Y_CAP = 205.0   # above this the ears widen the silhouette: use an elliptical cap instead
@@ -49,7 +49,7 @@ a_meas[cap] = a205 * np.sqrt(np.clip(1 - t ** 2, 0, 1)) ** 0.85
 low = row_y > 700     # below 700 the silhouette is the legs: continue the cape's taper
 a700 = np.interp(700, ys, (R - L) / 2)
 a_meas[low] = a700 * np.sqrt(np.clip(1 - ((row_y[low] - 700) / 16) ** 2, 0, 1))   # rounded egg bottom
-a_px = smooth1(a_meas, 2); a_px[0] = 0.0
+a_px = smooth1(a_meas, 2); a_px[0] = 0.0; a_px[-1] = 0.0
 # where the cap meets the measured sides the profile dipped inward (concave): outlines drew a dash across the back
 cvx = (row_y > 172) & (row_y < 250)
 a_px[cvx] = np.maximum(a_px[cvx], np.interp(row_y[cvx], [172, 250], np.interp([172, 250], row_y, a_px)))
@@ -109,7 +109,7 @@ n_z = np.where(row_y < 400, n_z * (1 - smoothstep(118, 142, row_y)), n_z)   # ke
 # snug hood: the front half of every ring is a shallower ellipse (same width, so the front view keeps matching the
 # drawing), deep enough that the opening's rim sits just in front of the hair / body (RIM_T). Rows above the opening
 # get a near-vertical front (CAP_T): an egg-deep front there overhung the face like a visor ("lid line" from above)
-RIM_T = (np.array([145, 175, 220, 380, 430, 520, 700, 720]), np.array([0.3, 0.27, 0.24, 0.22, 0.32, 0.46, 0.44, 0.42]))
+RIM_T = (np.array([145, 175, 220, 380, 430, 520, 640, 680, 700, 716]), np.array([0.3, 0.27, 0.24, 0.22, 0.32, 0.46, 0.45, 0.36, 0.24, 0.14]))   # the bottom tucks in behind the feet
 CAP_T = (np.array([60, 100, 130, 145]), np.array([0.42, 0.33, 0.31, 0.3]))
 b_full = a_px * K * DEPTH
 w_top = smoothstep(50, 70, row_y)
@@ -168,7 +168,8 @@ V = verts
 zpx = FOOT - V[:, 2] / K
 w_head = np.clip((360 - zpx) / 50 + 0.5, 0, 1)      # the shoulder panel (from row 385) moves with the chest, like the ring
 ang = np.arctan2(V[:, 0] - PX(CX), -V[:, 1])     # 0 = front, +pi/2 = her left (+X)
-w_low = np.clip((zpx - 470) / 200, 0, 1) * (1 - w_head)
+hdist = np.hypot(V[:, 0] - PX(np.interp(zpx, row_y, c_px)), V[:, 1])
+w_low = np.clip((zpx - 470) / 200, 0, 1) * (1 - w_head) * smoothstep(0.15, 0.55, hdist)
 back = np.clip((np.abs(ang) - np.pi / 2) / (np.pi / 2), 0, 1)
 w_chest = (1 - w_head) - w_low
 wts = {"head": w_head, "chest": w_chest,
@@ -464,15 +465,20 @@ add("Folds", "HoodInner", FV_, ff_, {"chest": np.ones(len(FV_))})
 sh = load("shorts")
 for side, sel, bone in (("R", XX < CX, "thigh_R"), ("L", XX >= CX, "thigh_L")):
     sy, scx, shw = mask_rows(sh & sel, 3, 1)
-    ring_volume("Shorts_" + side, "Shorts", [(y, cx, hw, 0.85 * hw * K, TORSO_Y0) for y, cx, hw in zip(sy, scx, shw)],
-                lerp_bones([(640, "hips"), (668, bone)]), nseg=28)
+    # a little forward (level with the tee's front) so they show under it; they follow the thigh only partly
+    # (fully, a forward step swung the whole short leg out like a balloon)
+    hb = lerp_bones([(640, "hips"), (668, bone)])
+    def shorts_w(x, y, hb=hb, bone=bone):
+        w = hb(x, y); w[bone] = w[bone] * 0.45; w["hips"] = 1 - w[bone]; return w
+    ring_volume("Shorts_" + side, "Shorts", [(y, cx, hw, 1.05 * hw * K, TORSO_Y0 - 0.09) for y, cx, hw in zip(sy, scx, shw)],
+                shorts_w, nseg=28)
 legs = load("legs")
 lab_l, _ = ndimage.label(legs)
 for side, cxp in (("R", 232), ("L", 358)):     # character's right leg is on the image left
     ids = [i for i in range(1, lab_l.max() + 1) if abs(np.nonzero(lab_l == i)[1].mean() - cxp) < 60]
     ly, lcx, lhw = mask_rows(np.isin(lab_l, ids), 2, 2)
-    ft = np.clip((ly - 712) / 21, 0, 1)                            # the foot reaches forward
-    ring_volume("Leg_" + side, "Skin", [(y, cx, hw, hw * K * (1 + 0.9 * f), TORSO_Y0 - 0.05 * f)
+    ft = smoothstep(704, 733, ly)                                  # the foot reaches forward
+    ring_volume("Leg_" + side, "Skin", [(y, cx, hw, hw * K * (1 + 1.0 * f), TORSO_Y0 - 0.09 - 0.06 * f)   # under the shorts' middle, feet forward
                                         for y, cx, hw, f in zip(ly, lcx, lhw, ft)],
                 lerp_bones([(680, "thigh_" + side), (700, "shin_" + side), (722, "foot_" + side)]), nseg=20)
 
@@ -542,6 +548,7 @@ uu = np.linspace(-np.pi / 2, np.pi / 2, NU)
 a_grid = np.where(uu[None, :] < 0, aL[:, None], aR[:, None])
 xg = np.clip(np.round(CX + a_grid * np.sin(uu)[None, :]).astype(int), 0, Wpx - 1)
 M = np.pad(keep[hy[:, None], xg], 3)
+M = ndimage.binary_closing(ndimage.binary_opening(M, iterations=2), iterations=1)   # drop slivers and specks
 P, tri, nb, dd, _ = mask_mesh(M, 5, 1.0, 80)
 u_v = (P[:, 0] - 3) / (NU - 1) * np.pi - np.pi / 2
 y_v = P[:, 1] - 3 + HY0
