@@ -483,20 +483,24 @@ for side, sel, bone in (("R", XX < CX, "thigh_R"), ("L", XX >= CX, "thigh_L")):
         w = hb(x, y); w[bone] = w[bone] * 0.45; w["hips"] = 1 - w[bone]; return w
     ring_volume("Shorts_" + side, "Shorts", [(y, cx, hw, 1.05 * hw * K, TORSO_Y0 - 0.09) for y, cx, hw in zip(sy, scx, shw)],
                 shorts_w, nseg=28)
-legs = load("legs")
-lab_l, _ = ndimage.label(legs)
-for side, cxp in (("R", 232), ("L", 358)):     # character's right leg is on the image left
-    ids = [i for i in range(1, lab_l.max() + 1) if abs(np.nonzero(lab_l == i)[1].mean() - cxp) < 60]
-    ly, lcx, _ = mask_rows(np.isin(lab_l, ids), 2, 2)
-    # a smooth chibi leg on the drawn centre line: it tapers to the ankle and stays round (the drawing's narrow ankle
-    # over a wider foot made an hourglass that drew a line round the ankle); the foot grows forward out of the shin in
-    # a long gentle curve, the heel stays put
-    lcx = np.polyval(np.polyfit(ly, lcx, 1), ly)
-    lhw = np.interp(ly, [676, 690, 712, 733], [12.0, 12.5, 10.0, 10.0])
-    ft = smoothstep(696, 731, ly)
-    r0 = lhw * K; dy = r0 * (1 + 1.3 * ft); yc = TORSO_Y0 - 0.09 - 0.9 * (dy - r0)
+# the two legs are mirror images: straight up and down at the drawn spacing, symmetric about the body (the drawing's
+# left foot points out; copying that slant made that leg's lower half kick sideways whenever its knee bent).
+# Their joints sit on the leg's own axis - hip inside the shorts, knee, ankle - so the leg pivots where it bends
+# (a hinge behind the leg made the knee tear and the leg slide in and out of the shorts)
+LEG_CX = {"R": CX - 65.0, "L": CX + 65.0}      # character's right leg is on the image left
+LEG_D = TORSO_Y0 - 0.09                        # depth of the leg's axis
+LEG_ROWS = dict(hip=662.0, knee=700.0, ankle=721.0, sole=733.0)
+for side in ("R", "L"):
+    ly = np.arange(674.0, 731.0, 2.0)
+    lcx = np.full(len(ly), LEG_CX[side])
+    # a smooth chibi leg: a gently tapering tube whose front leans forward in one straight line from the top (inside
+    # the shorts) down into the foot, the heel stays put. No hollow or bend on the front anywhere: each one let the
+    # outline show through as a dark dash across the leg
+    lhw = np.interp(ly, [674, 733], [12.0, 11.0])
+    ft = (ly - ly[0]) / (733 - ly[0])
+    r0 = lhw * K; dy = r0 * (1 + 1.3 * ft); yc = LEG_D - 0.9 * (dy - r0)
     ring_volume("Leg_" + side, "Skin", [(y, cx, hw, d, c) for y, cx, hw, d, c in zip(ly, lcx, lhw, dy, yc)],
-                lerp_bones([(680, "thigh_" + side), (700, "shin_" + side), (722, "foot_" + side)]), nseg=20)
+                lerp_bones([(693, "thigh_" + side), (707, "shin_" + side), (715, "shin_" + side), (727, "foot_" + side)]), nseg=20)
 
 # sleeves and forearms: round tubes along the arm, sized from the reference
 tube("Sleeve_R", "Top", [(208, 470), (180, 448), (154, 428)], [29, 27, 24], [-0.24, -0.35, -0.46], one("upperarm_R"))
@@ -619,12 +623,10 @@ BONES = [
     ("upperarm_L", "chest", P3(388, 482, -0.24), P3(428, 496, -0.5)),
     ("forearm_L", "upperarm_L", P3(428, 496, -0.5), P3(458, 502, -0.8)),
     ("hand_L", "forearm_L", P3(458, 502, -0.8), P3(518, 516, -0.86)),
-    ("thigh_R", "hips", P3(245, 660), P3(236, 695)),
-    ("shin_R", "thigh_R", P3(236, 695), P3(232, 718)),
-    ("foot_R", "shin_R", P3(232, 718), P3(230, 732, -0.05)),
-    ("thigh_L", "hips", P3(340, 660), P3(350, 695)),
-    ("shin_L", "thigh_L", P3(350, 695), P3(355, 718)),
-    ("foot_L", "shin_L", P3(355, 718), P3(358, 732, -0.05)),
+    *[b for s_ in ("R", "L") for b in (
+        ("thigh_" + s_, "hips", P3(LEG_CX[s_], LEG_ROWS["hip"], LEG_D), P3(LEG_CX[s_], LEG_ROWS["knee"], LEG_D)),
+        ("shin_" + s_, "thigh_" + s_, P3(LEG_CX[s_], LEG_ROWS["knee"], LEG_D), P3(LEG_CX[s_], LEG_ROWS["ankle"], LEG_D)),
+        ("foot_" + s_, "shin_" + s_, P3(LEG_CX[s_], LEG_ROWS["ankle"], LEG_D), P3(LEG_CX[s_], LEG_ROWS["sole"], LEG_D - 0.08)))],
     ("braid1", "head", P3(150, 330, -0.08), P3(186, 390, -0.39)),
     ("braid2", "braid1", P3(186, 390, -0.39), P3(212, 444, -0.54)),
     ("hair_R1", "chest", P3(140, 440, 0.45), P3(125, 560, 0.5)),
