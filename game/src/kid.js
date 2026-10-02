@@ -159,22 +159,31 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     animate(dt, speed, pose = "walk") {
       dt = Math.min(dt, .05);
       t += dt;
-      amt = THREE.MathUtils.lerp(amt, speed, Math.min(1, dt * 8));
-      phase += dt * (5.2 + 5.5 * amt);
+      amt = THREE.MathUtils.lerp(amt, speed, Math.min(1, dt * 7));
+      phase += dt * (5.5 + 8.5 * amt);                    // quick little chibi steps (~4 a second at full speed)
       const s = Math.sin(phase), c = Math.cos(phase), idle = 1 - amt;
+      const up = c * c;                                    // 1 while the legs pass each other, 0 when a foot lands
+      const yaw = root.rotation.y, yawRate = prevYaw === null ? 0 : Math.atan2(Math.sin(yaw - prevYaw), Math.cos(yaw - prevYaw)) / dt; prevYaw = yaw;
       // legs: swing, knee lift on the forward swing, feet stay level
-      rot("thigh_L", "x", -.62 * s * amt); rot("thigh_R", "x", .62 * s * amt);
+      rot("thigh_L", "x", -.45 * s * amt); rot("thigh_R", "x", .45 * s * amt);
       const kl = Math.max(0, c) * amt, kr = Math.max(0, -c) * amt;
       rot("shin_L", "x", .9 * kl); rot("shin_R", "x", .9 * kr);
       rot("foot_L", "x", -.35 * kl + .62 * s * amt * .5); rot("foot_R", "x", -.35 * kr - .62 * s * amt * .5);
-      // body: bounce, sway, lean, breathing
+      // body: a cute waddle - she rocks from foot to foot, bounces up between steps and squashes a little when a foot
+      // lands, leans into the walk and into turns; the head stays steadier than the body. Standing: soft breathing
       const happy = expr === "happy", sad = expr === "sad";
       const hop = happy ? Math.abs(Math.sin(t * 8.5)) * .22 : 0;
-      const bob = Math.abs(c) * .08 * amt + hop;
-      rot("hips", "z", .05 * s * amt); rot("hips", "x", .06 * amt);
-      rot("chest", "y", -.1 * s * amt); rot("chest", "x", .025 * Math.sin(t * 2.3) * idle + (sad ? .05 : 0));
-      rot("head", "z", .05 * s * amt + .05 * Math.sin(t * .9) * idle); rot("head", "x", -.04 * amt + (sad ? .08 : 0) + .02 * Math.sin(t * 1.7) * idle);
+      const bob = (up * .14 + .02) * amt + hop;
+      const turn = THREE.MathUtils.clamp(-yawRate * .025, -.1, .1) * amt;
+      const roll = .09 * c * amt + turn;                  // leaning over the standing foot, most when the legs pass
+      rot("root", "z", roll); rot("root", "x", .07 * amt);
+      rot("hips", "z", .03 * s * amt);
+      rot("chest", "y", -.09 * s * amt); rot("chest", "x", .025 * Math.sin(t * 2.3) * idle + (sad ? .05 : 0));
+      rot("head", "z", -roll * .55 + .05 * Math.sin(t * .9) * idle);
+      rot("head", "x", -.05 * amt + .05 * (up - .5) * amt + (sad ? .08 : 0) + .02 * Math.sin(t * 1.7) * idle);
       B.root.b.position.copy(B.root.p0); B.root.b.position.y += bob;
+      const squash = (up - .6) * .07 * amt + .012 * Math.sin(t * 2.2) * idle;
+      model.scale.set(1 - squash * .5, 1 + squash, 1 - squash * .5);
       // arms
       for (const side of ["L", "R"]) {
         const g = side === "L" ? 1 : -1;
@@ -197,17 +206,16 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       }
       // springs: hair, braid, ears and cape lag behind bounces, flow back while walking, swing on turns
       const vy = (bob - prevBob) / dt; prevBob = bob;
-      const yaw = root.rotation.y, yawRate = prevYaw === null ? 0 : Math.atan2(Math.sin(yaw - prevYaw), Math.cos(yaw - prevYaw)) / dt; prevYaw = yaw;
       const ear = spring(sp.ear, 0, dt, 90, 6, -vy * .9 * dt);
       both("ear", "x", ear * .4 - .03 * amt);
       const hair = spring(sp.hair, .12 * amt, dt, 60, 6, -vy * .3 * dt);
-      const hairZ = spring(sp.hairZ, THREE.MathUtils.clamp(-yawRate * .04, -.2, .2) + .04 * s * amt, dt, 50, 5);
+      const hairZ = spring(sp.hairZ, THREE.MathUtils.clamp(-yawRate * .04, -.2, .2) - roll * .5, dt, 34, 4);
       rot("hair_L1", "x", hair * .7); rot("hair_R1", "x", hair * .7); rot("hair_L2", "x", hair * .5); rot("hair_R2", "x", hair * .5);
       rot("hair_L1", "z", hairZ); rot("hair_R1", "z", hairZ);
-      const braid = spring(sp.braid, .08 * s * amt, dt, 55, 5, -vy * .6 * dt);
+      const braid = spring(sp.braid, -roll * .6, dt, 40, 4, -vy * .6 * dt);
       rot("braid1", "z", braid); rot("braid2", "z", braid * 1.4); rot("braid1", "x", -Math.abs(braid) * .5);
       const cape = spring(sp.cape, .16 * amt, dt, 45, 5, -vy * .2 * dt);
-      const capeZ = spring(sp.capeZ, THREE.MathUtils.clamp(-yawRate * .04, -.2, .2) + .04 * s * amt, dt, 40, 4.5);
+      const capeZ = spring(sp.capeZ, THREE.MathUtils.clamp(-yawRate * .04, -.2, .2) - roll * .7, dt, 26, 3.6);   // the hem swings after the body
       const flare = spring(sp.flare, 0, dt, 75, 6, Math.max(0, -vy) * .15 * dt);
       rot("cape_B", "x", cape + flare * .4); rot("cape_B", "z", capeZ);
       rot("cape_L", "x", cape * .6); rot("cape_L", "z", capeZ * .6 + flare * .3);

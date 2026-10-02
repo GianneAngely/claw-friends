@@ -48,5 +48,6 @@ const hide = (Q.get("hide") || "").split(",").filter(Boolean);
 if (hide.length) scene.traverse(o => { if (hide.some(h => o.name.startsWith(h))) o.visible = false; });
 renderer.render(scene, cam);
 window.KIDS = kids;
+window.RENDER = () => renderer.render(scene, cam);   // for tools/cdpclip.mjs (animation clips)
 window.READY = true;
 })();
