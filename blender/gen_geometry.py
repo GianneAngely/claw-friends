@@ -427,7 +427,10 @@ braid_m = load("braid")
 pillow("HairTop", "HairTex", load("hair_top") | (braid_m & (YY < 332)), hair_top_base, 0.4, 0.4, one("head"), grid=4, uv=True)
 # hair over the crown, under the hood: looking into the hood above the bangs shows hair, not the hood lining
 cv, cf = ellipsoid(PX(HEAD["cx"]), PZ(HEAD["cy"]), HEAD["yc"], HEAD["rx"] * K + 0.02, HEAD["rz"] * K + 0.02, HEAD["ry"] + 0.02)
-keep_f = (cv[cf][:, :, 2] >= PZ(215)).all(1)
+# only the top and the back of the head: its front (rows down to 215) sat in front of the forehead and filled the gaps
+# between the bang strands with plain hair colour, over the drawn lines
+fz, fy = cv[cf][:, :, 2], cv[cf][:, :, 1]
+keep_f = ((fz >= PZ(215)) & ((fz >= PZ(158)) | (fy >= HEAD["yc"] - 0.05))).all(1)
 add("HairCrown", "HairTex", cv, cf[keep_f], {"head": np.ones(len(cv))}, uv=front_uv(cv))
 
 # braid: the drawn braid (plait, tie, tuft) as a relief painted with the drawing, along a depth curve from inside the
