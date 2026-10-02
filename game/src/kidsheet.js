@@ -39,9 +39,12 @@ const poseQ = Q.get("pose") || "walk", speedQ = +(Q.get("speed") || 0), stepsQ =
 const stepsList = (Q.get("stepsList") || "").split(",").filter(Boolean).map(Number);
 const poseList = (Q.get("poseList") || "").split(",").filter(Boolean);
 const faceList = (Q.get("faceList") || "").split(",").filter(Boolean);
+// ?phaseList=0,.1,... walks each kid on (after its steps) until its walk cycle reaches that point
+const phaseList = (Q.get("phaseList") || "").split(",").filter(Boolean).map(Number);
 kids.forEach((kid, i) => {
   const f = faceList[i] || faceQ, pose = poseList[i] || poseQ, n = stepsList[i] ?? stepsQ;
   for (let k = 0; k < n; k++) { if (f && f !== "-") kid.setFace(f, 9); kid.animate(1 / 60, pose === "walk" || pose === "push" ? speedQ : 0, pose); }
+  if (phaseList[i] !== undefined) for (let k = 0; k < 4000 && Math.abs(kid.phase - phaseList[i]) > .003; k++) kid.animate(1 / 1000, 1, pose);
 });
 // ?hide=MeshName,... hides model parts (and their outlines) for debugging
 const hide = (Q.get("hide") || "").split(",").filter(Boolean);

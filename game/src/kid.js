@@ -71,12 +71,15 @@ export async function loadKid() {
   HAIR_TEX = await loader.loadAsync(hairPng);
   HAIR_TEX.flipY = false; HAIR_TEX.colorSpace = THREE.SRGBColorSpace; HAIR_TEX.anisotropy = 4;
 }
-// walk cycle, per leg: phase 0 = that heel touches down. Joint angles in degrees: hip + = leg forward, knee + = bent,
-// ankle + = toes up (heel strike, loading, mid-stance, heel off, toe off, mid-swing, reaching forward)
+// walk cycle, per leg: phase 0 = that heel touches down; stance 0-0.6, swing 0.6-1 (normal gait: initial contact,
+// loading response, mid stance, terminal stance, pre-swing, initial / mid / terminal swing). Joint angles in degrees
+// after the published normal gait curves (hip flexed 30 at contact, extended 10 at terminal stance; knee 15 in loading,
+// 40 at toe-off, 60 in initial swing; ankle plantar-flexed 20 at toe-off), a little bigger for her short legs.
+// hip + = leg forward, knee + = bent, ankle + = toes up
 const GAIT = {
-  hip: [[0, 26], [.12, 20], [.3, 2], [.5, -18], [.6, -14], [.75, 14], [.88, 30]],
-  knee: [[0, 5], [.12, 18], [.3, 6], [.5, 12], [.6, 42], [.72, 66], [.88, 16]],
-  ankle: [[0, 14], [.1, 0], [.3, 3], [.5, -10], [.6, -24], [.75, 0], [.9, 10]],
+  hip: [[0, 30], [.12, 25], [.3, 6], [.5, -14], [.6, -6], [.73, 20], [.87, 32]],
+  knee: [[0, 5], [.12, 18], [.3, 6], [.5, 8], [.6, 40], [.72, 62], [.87, 26]],
+  ankle: [[0, 10], [.08, -6], [.3, 6], [.48, 10], [.6, -20], [.73, -4], [.88, 4]],
 };
 // smooth periodic curve through [phase, value] keys (cubic Hermite, wraps at 1)
 function cyc(keys, p) {
@@ -144,24 +147,40 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       e.acc.identity();
     }
   }
-  // arms are posed by aiming the upper arm and forearm at directions (the model's rest pose is the waving reference
-  // pose); by default they hang relaxed at her sides
+  // arms are posed by aiming the upper arm and the forearm at directions, with the thumb turned a given way (so both
+  // hands sit alike: aiming alone left each hand twisted differently, the arms come from different rest poses - the
+  // model's rest pose is the waving reference pose); by default they hang relaxed at her sides
   const wp = b => b.getWorldPosition(new THREE.Vector3());
   const V = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
+  const FWD = new THREE.Vector3(0, 0, 1);
+  const ortho = (v, d) => { const o = v.clone().addScaledVector(d, -v.dot(d)); return o.lengthSq() > 1e-8 ? o.normalize() : new THREE.Vector3(1, 0, 0); };
+  const _m0 = new THREE.Matrix4(), _m1 = new THREE.Matrix4(), _x = new THREE.Vector3();
+  // rotation taking the frame (direction d0, front f0) onto (d1, f1)
+  function frameRot(d0, f0, d1, f1, out) {
+    _m0.makeBasis(_x.crossVectors(d0, f0), d0, f0).transpose();
+    _m1.makeBasis(new THREE.Vector3().crossVectors(d1, f1), d1, f1);
+    return out.setFromRotationMatrix(_m1.multiply(_m0));
+  }
   const ARM = {};
   for (const s of ["L", "R"]) {
     const pu = wp(B["upperarm_" + s].b), pf = wp(B["forearm_" + s].b), ph = wp(B["hand_" + s].b), g = s === "L" ? 1 : -1;
-    const rest = { upper: pf.clone().sub(pu).normalize(), fore: ph.clone().sub(pf).normalize() };
-    ARM[s] = { rest, cur: { upper: V(g * .26, -1, .1), fore: V(g * .1, -1, .34) } };
+    const upper = pf.clone().sub(pu).normalize(), fore = ph.clone().sub(pf).normalize();
+    const hand = new THREE.Vector3(0, 1, 0).applyQuaternion(B["hand_" + s].rw);   // (a bone points along its local y)
+    // the rest hands are bent at the wrist (waving / held out): each hand gets its own turn, so it continues the forearm
+    const rest = { upper, fore, hand, upF: ortho(FWD, upper), foF: ortho(FWD, fore), haF: ortho(FWD, hand) };   // (the thumb is on the hand's front)
+    ARM[s] = { rest, cur: { upper: V(g * .18, -1, .04), fore: V(g * .07, -1, .42), thumb: V(-g * .2, 0, 1) } };
   }
-  const _v = new THREE.Vector3(), _qu = new THREE.Quaternion(), _qf = new THREE.Quaternion();
-  function aimArm(s, goalUpper, goalFore, dt) {
-    const a = ARM[s], k = 1 - Math.exp(-dt * 24);   // quick: a slow follow flattened the arm swing
-    a.cur.upper.lerp(goalUpper, k).normalize(); a.cur.fore.lerp(goalFore, k).normalize();
-    _qu.setFromUnitVectors(a.rest.upper, a.cur.upper);
-    _v.copy(a.cur.fore).applyQuaternion(_t.copy(_qu).invert());
-    _qf.setFromUnitVectors(a.rest.fore, _v);
-    B["upperarm_" + s].acc.premultiply(_qu); B["forearm_" + s].acc.premultiply(_qf);
+  const _qu = new THREE.Quaternion(), _qf = new THREE.Quaternion(), _qh = new THREE.Quaternion();
+  function aimArm(s, goalUpper, goalFore, goalThumb, dt) {
+    const a = ARM[s], k = 1 - Math.exp(-dt * 20);
+    a.cur.upper.lerp(goalUpper, k).normalize(); a.cur.fore.lerp(goalFore, k).normalize(); a.cur.thumb.lerp(goalThumb, k).normalize();
+    const thumb = ortho(a.cur.thumb, a.cur.fore);
+    frameRot(a.rest.upper, a.rest.upF, a.cur.upper, ortho(FWD, a.cur.upper), _qu);
+    frameRot(a.rest.fore, a.rest.foF, a.cur.fore, thumb, _qf);
+    frameRot(a.rest.hand, a.rest.haF, a.cur.fore, thumb, _qh);   // a straight wrist
+    _qh.premultiply(_t.copy(_qf).invert());          // each turn on top of its parent's
+    _qf.premultiply(_t.copy(_qu).invert());
+    B["upperarm_" + s].acc.premultiply(_qu); B["forearm_" + s].acc.premultiply(_qf); B["hand_" + s].acc.premultiply(_qh);
   }
   const lerpV = (a, b, t) => a.clone().lerp(b, t).normalize();
 
@@ -174,12 +193,14 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     root, character: ch,
     // happy / sad / wow for a while, then back to idle
     setFace(name, sec = 1.6) { expr = name; exprT = sec; },
+    // where the walk cycle is, 0..1 (0 = her left heel touches down); for tests
+    get phase() { return (phase / (2 * Math.PI)) % 1; },
     // speed 0..1; pose: "walk" (default), "reach" (at a claw machine), "push" (holding the cart)
     animate(dt, speed, pose = "walk") {
       dt = Math.min(dt, .05);
       t += dt;
       amt = THREE.MathUtils.lerp(amt, speed, Math.min(1, dt * 7));
-      phase += dt * (5 + 7 * amt);                        // ~3.8 little steps a second at full speed
+      phase += dt * (5 + 8.8 * amt);                      // ~4.4 quick little steps a second at full speed
       const pL = (phase / (2 * Math.PI)) % 1, pR = (pL + .5) % 1, idle = 1 - amt;
       const TAU = 2 * Math.PI, cw = Math.cos(TAU * pL);
       const yaw = root.rotation.y, yawRaw = prevYaw === null ? 0 : Math.atan2(Math.sin(yaw - prevYaw), Math.cos(yaw - prevYaw)) / Math.max(dt, 1e-3); prevYaw = yaw;
@@ -207,31 +228,36 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       rot("head", "y", -.08 * cw * amt);
       rot("head", "z", -roll * .6 + .05 * Math.sin(t * .9) * idle);
       rot("head", "x", -.04 * amt + .03 * (bN - .5) * amt + (sad ? .08 : 0) + .02 * Math.sin(t * 1.7) * idle);
-      B.root.b.position.copy(B.root.p0); B.root.b.position.y += bob;
+      // the weight moves over the standing foot (a small side-to-side shift) and the free side of the pelvis dips
+      const shift = .035 * Math.cos(TAU * (pL - .3)) * amt;
+      rot("hips", "z", .05 * Math.cos(TAU * (pL - .3)) * amt);
+      B.root.b.position.copy(B.root.p0); B.root.b.position.y += bob; B.root.b.position.x += shift;
       const squash = (bN - .55) * .06 * amt + .012 * Math.sin(t * 2.2) * idle;
       model.scale.set(1 - squash * .5, 1 + squash, 1 - squash * .5);
       // arms
       for (const side of ["L", "R"]) {
         const g = side === "L" ? 1 : -1;
-        let up, fo;
+        let up, fo, th;
         if (happy) {                                  // "yay!": fists up in front of the chest
           const w = Math.sin(t * 14 + (g > 0 ? 0 : 1.5)) * .25;
-          up = V(g * .45, -.5, .6); fo = V(g * (.1 + w * .3), 1, .35);
-        } else if (pose === "reach") {
-          up = V(g * .15, .3 + .05 * Math.sin(t * 3 + g), 1); fo = V(0, .35, 1);
-        } else if (pose === "push") {
-          up = V(g * .2, -.35, 1); fo = V(g * .02, -.15, 1);
+          up = V(g * .45, -.5, .6); fo = V(g * (.1 + w * .3), 1, .35); th = V(-g, 0, .3);
+        } else if (pose === "reach") {               // hands forward on the machine, palms down, thumbs in
+          up = V(g * .15, .3 + .05 * Math.sin(t * 3 + g), 1); fo = V(0, .35, 1); th = V(-g, .2, 0);
+        } else if (pose === "push") {                // gripping the cart handle
+          up = V(g * .2, -.35, 1); fo = V(g * .02, -.15, 1); th = V(-g, .2, 0);
         } else {
-          // relaxed at her sides with a little breathing sway; walking: each arm swings with the opposite leg, from the
-          // shoulder, the elbow bending more on the way forward (a beat behind) and the hand drifting in a little
-          const pa = (side === "L" ? pL : pR) - .54, breathe = .04 * Math.sin(t * 1.9 + g) * idle;
-          const al = (6 + 26 * Math.cos(TAU * pa)) * DEG, el = (14 + 30 * (.5 + .5 * Math.cos(TAU * (pa - .06)))) * DEG;
+          // standing: relaxed, the arms a little away from the body, elbows softly bent, palms to the thighs, thumbs
+          // forward, a slow breathing sway. Walking: each arm swings from the shoulder with the opposite leg (about
+          // 40 degrees, more than the 20-25 of an adult walk for her short arms), the elbow bending more on the way
+          // forward and peaking a beat after the shoulder, the hand drifting in a little at the front of the swing
+          const pa = (side === "L" ? pL : pR) - .54, breathe = .025 * Math.sin(t * 1.9 + g) * idle;
+          const al = (4 + 20 * Math.cos(TAU * pa)) * DEG, el = (16 + 24 * (.5 + .5 * Math.cos(TAU * (pa - .08)))) * DEG;
           const fwd = Math.max(0, Math.cos(TAU * pa));
-          const walkUp = V(g * (.22 - .05 * fwd), -Math.cos(al), Math.sin(al)), walkFo = V(g * (.1 - .09 * fwd), -Math.cos(al + el), Math.sin(al + el));
-          const standUp = sad ? V(g * .12, -1, .02) : V(g * (.26 + breathe), -1, .1), standFo = sad ? V(g * .05, -1, .12) : V(g * .1, -1, .34);
-          up = lerpV(standUp, walkUp, amt); fo = lerpV(standFo, walkFo, amt);
+          const walkUp = V(g * (.2 - .05 * fwd), -Math.cos(al), Math.sin(al)), walkFo = V(g * (.08 - .07 * fwd), -Math.cos(al + el), Math.sin(al + el));
+          const standUp = sad ? V(g * .1, -1, .0) : V(g * (.18 + breathe), -1, .04), standFo = sad ? V(g * .04, -1, .16) : V(g * .07, -1, .42);
+          up = lerpV(standUp, walkUp, amt); fo = lerpV(standFo, walkFo, amt); th = V(-g * .2, 0, 1);
         }
-        aimArm(side, up, fo, dt);
+        aimArm(side, up, fo, th, dt);
       }
       // springs: hair, braid, ears and cape lag behind bounces, flow back while walking, swing on turns
       const vy = (bob - prevBob) / dt; prevBob = bob;
@@ -247,8 +273,8 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       const capeZ = spring(sp.capeZ, THREE.MathUtils.clamp(-yawRate * .04, -.2, .2) - roll * .7, dt, 26, 3.6);   // the hem swings after the body
       const flare = spring(sp.flare, 0, dt, 75, 6, Math.max(0, -vy) * .15 * dt);
       rot("cape_B", "x", cape + flare * .4); rot("cape_B", "z", capeZ);
-      rot("cape_L", "x", cape * .6); rot("cape_L", "z", capeZ * .6 + flare * .3);
-      rot("cape_R", "x", cape * .6); rot("cape_R", "z", capeZ * .6 - flare * .3);
+      rot("cape_L", "x", cape * .6 - .05 * Math.sin(TAU * pL) * amt); rot("cape_L", "z", capeZ * .6 + flare * .3);
+      rot("cape_R", "x", cape * .6 - .05 * Math.sin(TAU * pR) * amt); rot("cape_R", "z", capeZ * .6 - flare * .3);
       // face: expression timer and blinking
       if (exprT > 0) { exprT -= dt; if (exprT <= 0) expr = "idle"; }
       blinkT -= dt;
