@@ -154,6 +154,15 @@ for k in range(NS):
     hem += [[o1, NV + o2, o2], [o1, NV + o1, NV + o2]]
 verts = np.concatenate([verts_o, verts_i])
 faces = np.array(fo + [[a + NV, b + NV, c + NV] for a, b, c in fi] + rim + hem)
+shell_fmat = np.r_[np.zeros(len(fo), int), np.ones(len(fi), int), np.zeros(len(rim) + len(hem), int)]
+# weld coincident vertices here (ring seams, the top pole), so the bone weights below stay on the right vertices
+# (welding in Blender re-numbered the vertices after the weights were made: the lining's top got the hem's cape
+# weights and burst through the hood when walking)
+_, first, inv = np.unique(np.round(verts * 1e6).astype(np.int64), axis=0, return_index=True, return_inverse=True)
+order = np.argsort(first); rank = np.empty_like(order); rank[order] = np.arange(len(order))
+verts = verts[first[order]]; faces = rank[inv.reshape(-1)[faces]]
+okf = (faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 0] != faces[:, 2])
+faces, shell_fmat = faces[okf], shell_fmat[okf]
 # weights: hood follows the head, the lower cape follows the chest and sways with 3 cape chains
 V = verts
 zpx = FOOT - V[:, 2] / K
@@ -165,7 +174,7 @@ w_chest = (1 - w_head) - w_low
 wts = {"head": w_head, "chest": w_chest,
        "cape_B": w_low * back, "cape_L": w_low * (1 - back) * (ang > 0), "cape_R": w_low * (1 - back) * (ang <= 0)}
 add("Shell", ["Hood", "HoodInner"], verts, faces, wts)
-PARTS[-1]["face_mat"] = np.r_[np.zeros(len(fo), int), np.ones(len(fi), int), np.zeros(len(rim) + len(hem), int)]
+PARTS[-1]["face_mat"] = shell_fmat
 
 def shell_front_y(xpx, ypx):
     """Y of the shell's outer front surface at a reference pixel (for things stuck on the hood)"""
