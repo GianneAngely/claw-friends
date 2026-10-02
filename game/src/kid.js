@@ -166,7 +166,7 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
   const lerpV = (a, b, t) => a.clone().lerp(b, t).normalize();
 
   // ---------- animation state ----------
-  let phase = 0, amt = 0, t = 0, prevBob = 0, prevYaw = null, expr = "idle", exprT = 0, blinkT = 2 + Math.random() * 3;
+  let phase = 0, amt = 0, t = 0, prevBob = 0, prevYaw = null, yawRateS = 0, turnS = 0, expr = "idle", exprT = 0, blinkT = 2 + Math.random() * 3;
   const sp = { ear: { a: 0, v: 0 }, hair: { a: 0, v: 0 }, hairZ: { a: 0, v: 0 }, braid: { a: 0, v: 0 }, cape: { a: 0, v: 0 }, capeZ: { a: 0, v: 0 }, flare: { a: 0, v: 0 } };
   const setMap = name => { const m = FACES[name]; if (faceMat.map !== m) { faceMat.map = m; faceMat.needsUpdate = true; } };
 
@@ -182,7 +182,9 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       phase += dt * (5 + 7 * amt);                        // ~3.8 little steps a second at full speed
       const pL = (phase / (2 * Math.PI)) % 1, pR = (pL + .5) % 1, idle = 1 - amt;
       const TAU = 2 * Math.PI, cw = Math.cos(TAU * pL);
-      const yaw = root.rotation.y, yawRate = prevYaw === null ? 0 : Math.atan2(Math.sin(yaw - prevYaw), Math.cos(yaw - prevYaw)) / dt; prevYaw = yaw;
+      const yaw = root.rotation.y, yawRaw = prevYaw === null ? 0 : Math.atan2(Math.sin(yaw - prevYaw), Math.cos(yaw - prevYaw)) / Math.max(dt, 1e-3); prevYaw = yaw;
+      yawRateS += (yawRaw - yawRateS) * Math.min(1, dt * 10);   // smoothed: the lean and the hair follow a steady turn
+      const yawRate = yawRateS;
       // legs: a real walk cycle - heel strike with the toes up, the knee gives a little as the weight comes on, the
       // leg pushes back and rolls off the toes, then swings through with the knee bent and reaches forward again
       for (const [side, p] of [["L", pL], ["R", pR]]) {
@@ -196,7 +198,8 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       const hop = happy ? Math.abs(Math.sin(t * 8.5)) * .22 : 0;
       const bN = (1 - Math.cos(2 * TAU * (pL - .07))) / 2;
       const bob = (bN * .1 + .02) * amt + hop;
-      const turn = THREE.MathUtils.clamp(-yawRate * .025, -.1, .1) * amt;
+      turnS += (THREE.MathUtils.clamp(-yawRate * .025, -.08, .08) * amt - turnS) * Math.min(1, dt * 8);   // eases into turns
+      const turn = turnS;
       const roll = -.075 * Math.cos(TAU * (pL - .3)) * amt + turn;
       rot("root", "z", roll); rot("root", "x", .06 * amt);
       rot("hips", "y", -.1 * cw * amt);

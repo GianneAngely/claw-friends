@@ -123,6 +123,9 @@ async function main() {
   const kidCol = world.createCollider(RAPIER.ColliderDesc.capsule(1.2, 1.25).setCollisionGroups(G_KID), kidBody);
   const cc = world.createCharacterController(.05); cc.setSlideEnabled(true);
   let kidYaw = Math.PI, kidSpeed = 0;
+  // the kid's pose after the last two physics steps: drawn in between, so walking and turning look smooth on screens
+  // faster than the 60 Hz physics (on 120 Hz, the yaw jumped every other frame and the turn lean flickered)
+  const kidPrev = { x: 0, z: 0, yaw: kidYaw }, kidCur = { x: 0, z: 0, yaw: kidYaw };
   const kidVel = new THREE.Vector3();
   let kidColRef = kidCol;
   // with a cart the collider grows forward so the cart can't go through walls or machines
@@ -583,11 +586,11 @@ async function main() {
   }
   if (TEST === "wardrobe") openWardrobe();
   ui.ready();
-  renderer.setAnimationLoop(now => {
+  const frame = now => {
     const dt = Math.max(0, Math.min(.1, (now - last) / 1000)); last = now;   // rAF clocks can start behind performance.now()
     let steps = 0;
     if (TEST) steps = TEST === "claw" ? 24 : 6;
-    else { accum += dt; while (accum >= STEP && steps < 4) { accum -= STEP; steps++; } }
+    else { accum += dt; while (accum >= STEP && steps < 4) { accum -= STEP; steps++; } accum = Math.min(accum, STEP); }   // (a long hitch is dropped, not caught up later)
     const ev = steps > 0 ? ui.consume() : {};   // presses wait for the next physics step instead of being dropped
     if (ev.keys && !ui.isModal()) ui.showControls(TOUCH, () => tutGo(0));
     if (window.FREEZE) {
@@ -610,13 +613,18 @@ async function main() {
       else if (e.back && !tween) closeWardrobe();
       world.step();
       for (const g of games) g.after(STEP);
+      const t = kidBody.translation();
+      Object.assign(kidPrev, kidCur);
+      Object.assign(kidCur, { x: t.x, z: t.z, yaw: kidYaw });
+      if (Math.hypot(kidCur.x - kidPrev.x, kidCur.z - kidPrev.z) > 1.5) Object.assign(kidPrev, kidCur);   // a teleport
     }
     // kid visual + camera follow
-    const p = kidBody.translation();
     if (mode === "walk") {
-      const dx = p.x - kid.root.position.x, dz = p.z - kid.root.position.z;
-      kid.root.position.set(p.x, 0, p.z);
-      kid.root.rotation.y = kidYaw;
+      const a = TEST ? 1 : Math.min(1, accum / STEP);
+      const px = kidPrev.x + (kidCur.x - kidPrev.x) * a, pz = kidPrev.z + (kidCur.z - kidPrev.z) * a;
+      const dx = px - kid.root.position.x, dz = pz - kid.root.position.z;
+      kid.root.position.set(px, 0, pz);
+      kid.root.rotation.y = kidPrev.yaw + angDiff(kidPrev.yaw, kidCur.yaw) * a;
       if (!tween) { camera.position.x += dx; camera.position.z += dz; controls.target.x += dx; controls.target.z += dz; }
       updatePrompt();
     }
@@ -653,8 +661,10 @@ async function main() {
     if (TEST === "claw" && testRounds.length >= ROUNDS && !window.TEST_DONE) {
       window.TEST_RESULT = { rounds: testRounds, wins: window.WINS || 0 }; window.TEST_DONE = true;
     }
-  });
-  window.CF = { games, get kid() { return kid; }, get mode() { return mode; }, camera, controls, save, scene, renderer };
+  };
+  renderer.setAnimationLoop(frame);
+  // (frame: one step of the main loop, for driving it at an exact frame rate in tests)
+  window.CF = { games, get kid() { return kid; }, get mode() { return mode; }, kidBody, camera, controls, save, scene, renderer, frame };
 }
 
 main();
