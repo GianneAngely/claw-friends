@@ -36,16 +36,16 @@ const ANIME_FRAG = `
     sh = mix(sh, mix(sh, base, .6), dots * uDotAmt * uDots);
     vec3 col = mix(sh, base, t);
     float fres = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
-    col += uRim * smoothstep(.6, .95, fres) * (.4 + .6 * t);
+    col += uRim * uRimAmt * smoothstep(.6, .95, fres) * (.4 + .6 * t);
     outgoingLight = col;
   }
   #include <opaque_fragment>`;
-function animeMat(c, opts = {}, shadowAmt = 1, dots = 1) {
+function animeMat(c, opts = {}, shadowAmt = 1, dots = 1, rim = 1, litMix = 1) {
   const m = new THREE.MeshLambertMaterial({ color: c, ...opts });
   m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, ANIME, { uShadowAmt: { value: shadowAmt }, uLitMix: { value: 1 }, uDots: { value: dots } });
+    Object.assign(sh.uniforms, ANIME, { uShadowAmt: { value: shadowAmt }, uLitMix: { value: litMix }, uDots: { value: dots }, uRimAmt: { value: rim } });
     sh.fragmentShader = sh.fragmentShader
-      .replace("void main() {", `uniform float uCut, uSoft, uSunI, uShadowSat, uDotPx, uDotR, uDotAmt, uShadowAmt, uLitMix, uDots;
+      .replace("void main() {", `uniform float uCut, uSoft, uSunI, uShadowSat, uDotPx, uDotR, uDotAmt, uShadowAmt, uLitMix, uDots, uRimAmt;
 uniform vec3 uShadowTint, uRim;
 void main() {`)
       .replace("#include <opaque_fragment>", ANIME_FRAG);
@@ -65,6 +65,13 @@ export function toonSoft(c) {
 export function toonFlat(c, shadow = .85) {
   const k = "c" + c + "_" + shadow;
   if (!cache.has(k)) cache.set(k, animeMat(c, {}, shadow, 0));
+  return cache.get(k);
+}
+// material painted with a texture that carries its own drawn shading (Kyoko's hair): shown as drawn, like the face -
+// the cel shadow and the rim light turned the hair's far side into over-saturated magenta streaks
+export function toonTex(c, map) {
+  const k = "x" + c + "_" + map.uuid;
+  if (!cache.has(k)) cache.set(k, animeMat(c, { map }, 0, 0, 0, 0));
   return cache.get(k);
 }
 export function toon(c, opts = {}) {
@@ -143,6 +150,7 @@ export function outlineSkinnedFor(c, ink) {
 // ink: an explicit line colour instead of the one derived from the surface
 export function outlineSkinned(m, color, ink) {
   const o = new THREE.SkinnedMesh(m.geometry, outlineSkinnedFor(color, ink));
+  o.name = m.name + "_line";
   o.bind(m.skeleton, m.bindMatrix);
   o.position.copy(m.position); o.quaternion.copy(m.quaternion); o.scale.copy(m.scale);
   o.frustumCulled = false; o.userData.isOutline = true; o.raycast = () => {};

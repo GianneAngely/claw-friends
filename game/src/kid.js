@@ -11,7 +11,8 @@ import faceBlink from "../assets/kyoko_face_blink.png";
 import faceHappy from "../assets/kyoko_face_happy.png";
 import faceSad from "../assets/kyoko_face_sad.png";
 import faceWow from "../assets/kyoko_face_wow.png";
-import { toonFlat, outlineSkinned } from "./gfx.js";
+import hairPng from "../assets/kyoko_hair.png";
+import { toonFlat, toonTex, outlineSkinned } from "./gfx.js";
 
 export const BASE = { hair: 0xA32858, hoodColor: 0xC7C7D0 };
 // wardrobe: the tee and the shorts come in the six colour sets W1..W6 (mix and match)
@@ -48,14 +49,15 @@ function palette(ch) {
   const hood = ch.hoodColor;
   return {
     Skin: [SKIN, .3], Hair: [ch.hair, .8], Top: [ch.topColor, .8], Shorts: [ch.bottomColor, .8],
-    Hood: [hood, .6], HoodInner: [darker(hood, .7), .4], EarInner: [lighter(hood, .3), .5], Nose: [0x38373B, .4],
-    Collar: [hood, .6], Button: [darker(hood, .96), .6], Glove: [lighter(hood, .03), .5],
+    Hood: [hood, .28], HoodInner: [darker(hood, .7), .4], EarInner: [lighter(hood, .3), .5], Nose: [0x38373B, .4],   // flat like the drawing
+    Collar: [hood, .35], Button: [darker(hood, .96), .4], Glove: [SKIN, .3],   // bare hands
   };
 }
 
 // ---------- model ----------
 let TEMPLATE = null;
 const FACES = {};
+let HAIR_TEX = null;   // her hair as drawn (strands, shading, highlights), projected from the front
 export async function loadKid() {
   if (TEMPLATE) return;
   const buf = kyokoGlb.buffer.slice(kyokoGlb.byteOffset, kyokoGlb.byteOffset + kyokoGlb.byteLength);
@@ -66,6 +68,8 @@ export async function loadKid() {
     t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;   // glTF UV convention
     FACES[k] = t;
   }));
+  HAIR_TEX = await loader.loadAsync(hairPng);
+  HAIR_TEX.flipY = false; HAIR_TEX.colorSpace = THREE.SRGBColorSpace; HAIR_TEX.anisotropy = 4;
 }
 function spring(s, target, dt, k = 70, c = 7, kick = 0) {
   s.v += (k * (target - s.a) - c * s.v) * dt + kick;
@@ -90,6 +94,15 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       m.material = faceMat; m.renderOrder = 1; m.castShadow = false;
       continue;
     }
+    if (m.name.startsWith("Folds")) {   // the cloth folds on the capelet: drawn lines, no outline
+      m.material = new THREE.MeshBasicMaterial({ color: darker(ch.hoodColor, .68), side: THREE.DoubleSide }); m.castShadow = false;
+      continue;
+    }
+    if (name === "HairTex") {   // Kyoko's hair carries the drawing; the staff (other hair colours) get the plain colour
+      m.material = ch.hair === BASE.hair ? toonTex(0xFFFFFF, HAIR_TEX) : toonFlat(ch.hair, .8);
+      outlineSkinned(m, ch.hair, INK);
+      continue;
+    }
     const [color, shade] = pal[name] || [0xFF00FF, .8];
     m.material = toonFlat(color, shade);
     outlineSkinned(m, color, INK);
@@ -112,15 +125,16 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       e.acc.identity();
     }
   }
-  // arms are posed by aiming the upper arm and forearm at directions; rest = the waving reference pose
+  // arms are posed by aiming the upper arm and forearm at directions (the model's rest pose is the waving reference
+  // pose); by default they hang relaxed at her sides
   const wp = b => b.getWorldPosition(new THREE.Vector3());
+  const V = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
   const ARM = {};
   for (const s of ["L", "R"]) {
-    const pu = wp(B["upperarm_" + s].b), pf = wp(B["forearm_" + s].b), ph = wp(B["hand_" + s].b);
+    const pu = wp(B["upperarm_" + s].b), pf = wp(B["forearm_" + s].b), ph = wp(B["hand_" + s].b), g = s === "L" ? 1 : -1;
     const rest = { upper: pf.clone().sub(pu).normalize(), fore: ph.clone().sub(pf).normalize() };
-    ARM[s] = { rest, cur: { upper: rest.upper.clone(), fore: rest.fore.clone() } };
+    ARM[s] = { rest, cur: { upper: V(g * .26, -1, .1), fore: V(g * .1, -1, .34) } };
   }
-  const V = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
   const _v = new THREE.Vector3(), _qu = new THREE.Quaternion(), _qf = new THREE.Quaternion();
   function aimArm(s, goalUpper, goalFore, dt) {
     const a = ARM[s], k = 1 - Math.exp(-dt * 9);
@@ -131,7 +145,6 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     B["upperarm_" + s].acc.premultiply(_qu); B["forearm_" + s].acc.premultiply(_qf);
   }
   const lerpV = (a, b, t) => a.clone().lerp(b, t).normalize();
-  const spinZ = (v, ang) => v.clone().applyAxisAngle(AX.z, ang);
 
   // ---------- animation state ----------
   let phase = 0, amt = 0, t = 0, prevBob = 0, prevYaw = null, expr = "idle", exprT = 0, blinkT = 2 + Math.random() * 3;
@@ -142,7 +155,7 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     root, character: ch,
     // happy / sad / wow for a while, then back to idle
     setFace(name, sec = 1.6) { expr = name; exprT = sec; },
-    // speed 0..1; pose: "walk" (default: waves while standing), "reach" (at a claw machine), "push" (holding the cart)
+    // speed 0..1; pose: "walk" (default), "reach" (at a claw machine), "push" (holding the cart)
     animate(dt, speed, pose = "walk") {
       dt = Math.min(dt, .05);
       t += dt;
@@ -164,7 +177,7 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       B.root.b.position.copy(B.root.p0); B.root.b.position.y += bob;
       // arms
       for (const side of ["L", "R"]) {
-        const g = side === "L" ? 1 : -1, rest = ARM[side].rest;
+        const g = side === "L" ? 1 : -1;
         let up, fo;
         if (happy) {                                  // "yay!": fists up in front of the chest
           const w = Math.sin(t * 14 + (g > 0 ? 0 : 1.5)) * .25;
@@ -174,11 +187,10 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
         } else if (pose === "push") {
           up = V(g * .2, -.35, 1); fo = V(g * .02, -.15, 1);
         } else {
-          // standing: the reference pose, her right hand waving; walking: arms swing at her sides
-          const swing = g * s * amt;
+          // relaxed at her sides with a little breathing sway; walking: they swing
+          const swing = g * s * amt, breathe = .04 * Math.sin(t * 1.9 + g) * idle;
           const walkUp = V(g * .24, -1, .08 + .55 * swing), walkFo = V(g * .08, -1, .3 + .35 * swing);
-          const standUp = sad ? V(g * .12, -1, .02) : side === "R" ? rest.upper : spinZ(rest.upper, .06 * Math.sin(t * 1.9));
-          const standFo = sad ? V(g * .05, -1, .12) : side === "R" ? spinZ(rest.fore, .35 * Math.sin(t * 7)) : rest.fore;
+          const standUp = sad ? V(g * .12, -1, .02) : V(g * (.26 + breathe), -1, .1), standFo = sad ? V(g * .05, -1, .12) : V(g * .1, -1, .34);
           up = lerpV(standUp, walkUp, amt); fo = lerpV(standFo, walkFo, amt);
         }
         aimArm(side, up, fo, dt);

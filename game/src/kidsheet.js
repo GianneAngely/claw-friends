@@ -31,7 +31,7 @@ for (const k of kinds) for (const yaw of views) {
 }
 const cam = new THREE.PerspectiveCamera(24, innerWidth / innerHeight, .1, 200);
 const w = n * gap + 1.5, dist = Math.max(w / 2 / Math.tan(12 * Math.PI / 180) / cam.aspect, 16);
-cam.position.set(0, 3.4, dist); cam.lookAt(0, 2.3, 0);
+cam.position.set(0, +(Q.get("camy") || 3.4), dist); cam.lookAt(0, 2.3, 0);   // ?camy= for a view from above
 const pr = renderer.getPixelRatio();
 outlineU.res.value.set(innerWidth * pr, innerHeight * pr); outlineU.px.value = 2.2 * pr;
 const faceQ = Q.get("face");
@@ -43,6 +43,9 @@ kids.forEach((kid, i) => {
   const f = faceList[i] || faceQ, pose = poseList[i] || poseQ, n = stepsList[i] ?? stepsQ;
   for (let k = 0; k < n; k++) { if (f && f !== "-") kid.setFace(f, 9); kid.animate(1 / 60, pose === "walk" || pose === "push" ? speedQ : 0, pose); }
 });
+// ?hide=MeshName,... hides model parts (and their outlines) for debugging
+const hide = (Q.get("hide") || "").split(",").filter(Boolean);
+if (hide.length) scene.traverse(o => { if (hide.some(h => o.name.startsWith(h))) o.visible = false; });
 renderer.render(scene, cam);
 window.KIDS = kids;
 window.READY = true;

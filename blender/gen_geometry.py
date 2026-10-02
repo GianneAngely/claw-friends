@@ -50,6 +50,9 @@ low = row_y > 700     # below 700 the silhouette is the legs: continue the cape'
 a700 = np.interp(700, ys, (R - L) / 2)
 a_meas[low] = a700 * np.sqrt(np.clip(1 - ((row_y[low] - 700) / 16) ** 2, 0, 1))   # rounded egg bottom
 a_px = smooth1(a_meas, 2); a_px[0] = 0.0
+# where the cap meets the measured sides the profile dipped inward (concave): outlines drew a dash across the back
+cvx = (row_y > 172) & (row_y < 250)
+a_px[cvx] = np.maximum(a_px[cvx], np.interp(row_y[cvx], [172, 250], np.interp([172, 250], row_y, a_px)))
 c_px = smooth1(np.where(row_y < Y_CAP, np.interp(Y_CAP, ys, (R + L) / 2), c_meas), 9)
 
 # front opening per side from the measured inner edges (rows hidden by the collar, the waving glove or the arm
@@ -71,40 +74,67 @@ def smoothstep(e0, e1, x):
     t_ = np.clip((x - e0) / (e1 - e0), 0, 1); return t_ * t_ * (3 - 2 * t_)
 ratioL = side_ratio("iL", (row_y > 330) & (row_y < 482))
 ratioR = side_ratio("iR", (row_y > 362) & (row_y < 530))
-# the cape's right shoulder flap: the panel comes in to the collar button (the drawing shows one grey area there)
-# and its front is pulled back to just in front of the collar; its lower edge follows the tee's neckline
-# its top edge runs from the shoulder down to the button along the jaw, and it curls back toward the neck up there
-x_flap = np.interp(row_y, [376, 386, 392, 398, 455, 472], [360, 345, 330, 318, 318, 445])
-w_sh = smoothstep(370, 392, row_y) * (1 - smoothstep(470, 480, row_y))
-ratioR = ratioR * (1 - w_sh) + np.minimum(ratioR, (x_flap - c_px) / np.maximum(a_px, 1)) * w_sh
-FLAP_D = np.interp(row_y, [370, 404], [-0.26, -0.5])
 ratioL = ratioL + (ratioL > 0) * 5 / np.maximum(a_px, 1)      # the rim's own thickness must not hide the hair
 ratioR = ratioR + (ratioR > 0) * 5 / np.maximum(a_px, 1)
+# her left shoulder (image right): the cape's front panel itself wraps over the shoulder to the ring at the throat,
+# along the drawn capelet edges (top edge under the hair tips, lower edge from the ring down to the sleeve), so the
+# capelet and the hood are one piece of cloth with no seam. The panel's front depth grows smoothly down the rows
+# (no crease): it drapes forward over the chest
+FLAP_X = (np.array([336, 342, 348, 354, 360, 366, 372, 378, 384, 389, 394, 396, 399, 402, 457, 461, 467, 473, 477, 480]),
+          np.array([462, 460, 458, 455, 450, 444, 437, 426, 410, 392, 376, 340, 306, 300, 300, 302, 320, 352, 384, 424]))
+FLAP_B = (np.array([340, 380, 410, 440, 470, 500, 530]), np.array([0.32, 0.33, 0.37, 0.43, 0.51, 0.59, 0.652]))   # smooth: a crease draws an outline
+FLAP = (row_y >= 330) & (row_y <= 486)
+xR_now = c_px + ratioR * a_px
+ratioR = np.where(FLAP, (np.interp(row_y, np.r_[330, FLAP_X[0], 486], np.r_[np.interp(330, row_y, xR_now), FLAP_X[1], np.interp(486, row_y, xR_now)]) - c_px) / np.maximum(a_px, 1), ratioR)
+# her right shoulder (image left) the same: the capelet runs from the ring along the jaw, under the braid, into the
+# hood on that side too (the drawing's waving arm hid where it meets the hood); with the arms down its lower edge
+# mirrors the other side's, down from the ring to the sleeve
+FLAP_XL = (np.array([336, 342, 348, 354, 360, 366, 372, 378, 384, 390, 396, 402, 457, 461, 467, 473, 477, 480]),
+           np.array([116, 118, 121, 124, 129, 135, 143, 225, 252, 260, 263, 284, 284, 282, 264, 232, 200, 160]))
+FLAP_L = (row_y >= 330) & (row_y <= 486)
+xL_now = c_px - ratioL * a_px
+ratioL = np.where(FLAP_L, (c_px - np.interp(row_y, np.r_[330, FLAP_XL[0], 486], np.r_[np.interp(330, row_y, xL_now), FLAP_XL[1], np.interp(486, row_y, xL_now)])) / np.maximum(a_px, 1), ratioL)
 thL, thR = np.arcsin(np.clip(ratioL, 0, 0.97)), np.arcsin(np.clip(ratioR, 0, 0.97))
 DEPTH = 0.8   # egg depth / width
-NS, T = 64, 0.036
-# ring angles: the back sector has the same angles on every row (no twisting between rows with different openings),
-# only the two front sectors stretch with the opening
-A1, NF = 1.6, 18
+NS, T = 88, 0.036
+# ring angles are the same on every row (no twisting between rows with different openings, e.g. along the capelet's
+# top edge); in the front sectors the angles inside the opening collapse onto its edge
+A1, NF = 1.6, 30
 BACK = np.linspace(A1, 2 * np.pi - A1, NS - 2 * NF + 1)
 NR = len(row_y)
 # the lining is offset along the profile normal, so the shell keeps its thickness at the top and bottom poles too
 dadz = np.gradient(a_px * K, PZ(row_y))
 n_r, n_z = 1 / np.sqrt(1 + dadz ** 2), -dadz / np.sqrt(1 + dadz ** 2)
 n_z = np.where(row_y < 400, n_z * (1 - smoothstep(118, 142, row_y)), n_z)   # keep the hood's face opening edge thin
+# snug hood: the front half of every ring is a shallower ellipse (same width, so the front view keeps matching the
+# drawing), deep enough that the opening's rim sits just in front of the hair / body (RIM_T). Rows above the opening
+# get a near-vertical front (CAP_T): an egg-deep front there overhung the face like a visor ("lid line" from above)
+RIM_T = (np.array([145, 175, 220, 380, 430, 520, 700, 720]), np.array([0.3, 0.27, 0.24, 0.22, 0.32, 0.46, 0.44, 0.42]))
+CAP_T = (np.array([60, 100, 130, 145]), np.array([0.42, 0.33, 0.31, 0.3]))
+b_full = a_px * K * DEPTH
+w_top = smoothstep(50, 70, row_y)
+def front_b(th):
+    tgt = np.where(th > 2e-3, np.interp(row_y, *RIM_T) / np.maximum(np.cos(th), 0.05), np.interp(row_y, *CAP_T))
+    return smooth1(b_full + (np.minimum(b_full, tgt) - b_full) * w_top, 1)
+bfR, bfL = front_b(thR), front_b(thL)
+from scipy.interpolate import PchipInterpolator
+bf_knots = PchipInterpolator(np.r_[320, FLAP_B[0], 560], np.r_[np.interp(320, row_y, bfR), FLAP_B[1], np.interp(560, row_y, bfR)])
+bfR = np.where((row_y > 320) & (row_y < 560), np.minimum(b_full, bf_knots(row_y)), bfR)
+bfL_knots = PchipInterpolator([320, 360, 390, 415, 440, 470, 500, 530], np.r_[np.interp(320, row_y, bfL), 0.352, 0.355, 0.385, 0.44, 0.53, 0.64, np.interp(530, row_y, bfL)])
+bfL = np.where((row_y > 320) & (row_y < 530), np.minimum(b_full, bfL_knots(row_y)), bfL)
 rings_o, rings_i, opened = [], [], []
 for i in range(NR):
     tr = float(thR[i]) if thR[i] > 2e-3 else 0.0
     tl = float(thL[i]) if thL[i] > 2e-3 else 0.0
     opened.append(tr > 0 or tl > 0)
-    phi = np.r_[np.linspace(tr, A1, NF + 1), BACK[1:], np.linspace(2 * np.pi - A1, 2 * np.pi - tl, NF + 1)[1:]]   # front-right edge, back, front-left edge
+    phi = np.r_[np.maximum(np.linspace(0, A1, NF + 1), tr), BACK[1:], np.minimum(np.linspace(2 * np.pi - A1, 2 * np.pi, NF + 1)[1:], 2 * np.pi - tl)]   # front-right edge, back, front-left edge
     for inner in (False, True):
         tt_ = T * n_r[i] if inner else 0.0
-        a = max(a_px[i] * K - tt_, 1e-4); b = max(a_px[i] * K * DEPTH - tt_, 1e-4)
-        ring = np.stack([PX(c_px[i]) + a * np.sin(phi), -b * np.cos(phi), np.full(NS + 1, PZ(row_y[i]) - (T * n_z[i] if inner else 0))], -1)
-        if w_sh[i] > 0:
-            f = w_sh[i] * (1 - smoothstep(0.0, 1.1, phi - tr))
-            ring[:, 1] += (np.maximum(ring[:, 1], FLAP_D[i] + (T if inner else 0)) - ring[:, 1]) * f
+        a = max(a_px[i] * K - tt_, 1e-4); b = max(b_full[i] - tt_, 1e-4)
+        bf = np.where(np.sin(phi) >= 0, max(bfR[i] - tt_, 1e-4), max(bfL[i] - tt_, 1e-4))
+        if a_px[i] == 0: a, b, bf = 0.0, 0.0, 0.0     # the top pole is one point (welded), not a tiny ring of bad normals
+        bb_ = np.where(np.cos(phi) > 0, bf, b)
+        ring = np.stack([PX(c_px[i]) + a * np.sin(phi), -bb_ * np.cos(phi), np.full(NS + 1, PZ(row_y[i]) - (T * n_z[i] if inner else 0))], -1)
         (rings_i if inner else rings_o).append(ring)
 verts_o = np.concatenate(rings_o); verts_i = np.concatenate(rings_i)
 NV = len(verts_o); RW = NS + 1
@@ -127,7 +157,7 @@ faces = np.array(fo + [[a + NV, b + NV, c + NV] for a, b, c in fi] + rim + hem)
 # weights: hood follows the head, the lower cape follows the chest and sways with 3 cape chains
 V = verts
 zpx = FOOT - V[:, 2] / K
-w_head = np.clip((395 - zpx) / 60 + 0.5, 0, 1)
+w_head = np.clip((360 - zpx) / 50 + 0.5, 0, 1)      # the shoulder panel (from row 385) moves with the chest, like the ring
 ang = np.arctan2(V[:, 0] - PX(CX), -V[:, 1])     # 0 = front, +pi/2 = her left (+X)
 w_low = np.clip((zpx - 470) / 200, 0, 1) * (1 - w_head)
 back = np.clip((np.abs(ang) - np.pi / 2) / (np.pi / 2), 0, 1)
@@ -141,7 +171,7 @@ def shell_front_y(xpx, ypx):
     """Y of the shell's outer front surface at a reference pixel (for things stuck on the hood)"""
     a = np.interp(ypx, row_y, a_px); c = np.interp(ypx, row_y, c_px)
     u = np.clip((xpx - c) / np.maximum(a, 1), -0.999, 0.999)
-    return -a * K * DEPTH * np.sqrt(1 - u ** 2)
+    return -np.where(u >= 0, np.interp(ypx, row_y, bfR), np.interp(ypx, row_y, bfL)) * np.sqrt(1 - u ** 2)
 
 # ------------------------------------------------------------------ head + face sticker
 HEAD = {"cx": 284.0, "cy": 271.0, "rx": 136.0, "rz": 127.0, "ry": 0.66, "yc": 0.07}
@@ -198,6 +228,16 @@ x0, y0, x1, y1 = FACE_BOX
 tex = np.concatenate([rgbf, alpha[..., None]], -1)[y0:y1 + 1, x0:x1 + 1]
 Image.fromarray((np.clip(tex, 0, 1) * 255).astype(np.uint8), "RGBA").resize(((x1 - x0 + 1) * 3, (y1 - y0 + 1) * 3), Image.LANCZOS).save(f"{B}/kyoko_face.png")
 
+# hair texture (game/assets/kyoko_hair.png): the drawn hair inside the hair parts, the plain hair colour elsewhere
+HAIR_RGB = np.array([163, 40, 88], np.float32) / 255
+hair_region = np.zeros((Hpx, Wpx), bool)
+for nm in ("hair_top", "braid", "hair_left", "hair_right", "hair_back"):
+    hair_region |= load(nm)
+hair_region = ndimage.binary_dilation(hair_region, iterations=1)
+w_h = ndimage.gaussian_filter(hair_region.astype(np.float32), 1.0)[..., None]
+htex = rgbf * w_h + HAIR_RGB * (1 - w_h)
+Image.fromarray((np.clip(htex, 0, 1) * 255).astype(np.uint8)).resize((Wpx * 2, Hpx * 2), Image.LANCZOS).save("/Users/gianneangely/Documents/ClawFriends/game/assets/kyoko_hair.png", optimize=True)
+
 # ------------------------------------------------------------------ mesh builders
 def mask_mesh(mask, grid=4, sigma=1.2, min_area=40):
     """contour-following triangulation of a 2D mask. Returns points P (x, y) with the boundary points first,
@@ -231,7 +271,11 @@ def cross2d(P, tri):
     e1 = P[tri[:, 1]] - P[tri[:, 0]]; e2 = P[tri[:, 2]] - P[tri[:, 0]]
     return e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]
 
-def pillow(name, material, mask, base_y, front, back, bone_fn, grid=4, sigma=1.2, min_area=40, cap=None, normal=False):
+def front_uv(V):
+    """UV = the reference pixel a vertex covers seen from the front (for meshes painted with the drawing)"""
+    return np.stack([(V[:, 0] / K + CX) / Wpx, 1 - (FOOT - V[:, 2] / K) / Hpx], -1)
+
+def pillow(name, material, mask, base_y, front, back, bone_fn, grid=4, sigma=1.2, min_area=40, cap=None, normal=False, uv=False):
     """inflate a front-view mask around a base surface Y = base_y(x_px, y_px); thickness front/back of the
     circular inflation height, optionally capped (flat slab) and applied along the base surface normal"""
     mm = mask_mesh(mask, grid, sigma, min_area)
@@ -255,7 +299,7 @@ def pillow(name, material, mask, base_y, front, back, bone_fn, grid=4, sigma=1.2
     tf[flip] = tf[flip][:, ::-1]
     faces = np.concatenate([tf, remap[tf][:, ::-1]])
     xs, yy = np.concatenate([P[:, 0], P[nb:, 0]]), np.concatenate([P[:, 1], P[nb:, 1]])
-    add(name, material, verts, faces, bone_fn(xs, yy))
+    add(name, material, verts, faces, bone_fn(xs, yy), uv=front_uv(verts) if uv else None)
 
 def mask_rows(mask, step, smooth_rows=2, y_min=0, y_max=10 ** 9):
     rows_ = [y for y in range(0, Hpx, step) if mask[y].any() and y_min <= y <= y_max]
@@ -357,52 +401,55 @@ tube("Neck", "Skin", [(292, 370), (292, 412)], [21, 23], [-0.03, -0.05], one("ne
 def hair_top_base(x, y):
     fy, ok = head_front_y(x, y, 0.035)
     side = HEAD["yc"] - 0.06
-    return np.where(ok, np.minimum(fy, side), side)
-pillow("HairTop", "Hair", load("hair_top"), hair_top_base, 0.4, 0.4, one("head"), grid=4)
-
-# braid: a generalised cylinder along its centre line, radius = the drawn width across the line (lobes, tie, tuft)
+    b0 = np.where(ok, np.minimum(fy, side), side)
+    # the side locks' lower ends lie on the capelet in front, like the drawing (rounded ends over the grey)
+    w = smoothstep(100, 130, np.abs(np.asarray(x, float) - HEAD["cx"])) * smoothstep(318, 372, np.asarray(y, float))
+    return b0 + (np.minimum(b0, shell_front_y(x, y) - 0.035) - b0) * w
 braid_m = load("braid")
-bys = np.array([y for y in np.arange(310, 444, 4.0) if braid_m[int(y)].any()])
-bcx = smooth1([np.nonzero(braid_m[int(y)])[0].mean() for y in bys], 2)
-bpath = np.stack([bcx, bys], -1)
-tang = np.gradient(bpath, axis=0); tang /= np.linalg.norm(tang, axis=1, keepdims=True)
-nrm2 = np.stack([-tang[:, 1], tang[:, 0]], -1)
-def reach(p, dirv):
-    s = 0.0
-    while s < 40:
-        q = p + dirv * (s + 0.5)
-        if not braid_m[int(round(q[1])), int(round(q[0]))]: break
-        s += 0.5
-    return s
-wp = np.array([reach(p, n) for p, n in zip(bpath, nrm2)]); wm = np.array([reach(p, -n) for p, n in zip(bpath, nrm2)])
-bpath = bpath + nrm2 * ((wp - wm) / 2)[:, None]
-brad = np.maximum(smooth1((wp + wm) / 2, 1) - 1.0, 4.0)
-bdep = np.interp(bys, [310, 330, 362, 393, 420, 446], [-0.02, -0.08, -0.24, -0.37, -0.46, -0.5])
-tube("Braid", "Hair", [tuple(p) for p in bpath], brad, bdep, lerp_bones([(330, "head"), (390, "braid1"), (440, "braid2")]),
-     nseg=16, per=2, flat=0.85, tip=True)
+pillow("HairTop", "HairTex", load("hair_top") | (braid_m & (YY < 332)), hair_top_base, 0.4, 0.4, one("head"), grid=4, uv=True)
+# hair over the crown, under the hood: looking into the hood above the bangs shows hair, not the hood lining
+cv, cf = ellipsoid(PX(HEAD["cx"]), PZ(HEAD["cy"]), HEAD["yc"], HEAD["rx"] * K + 0.02, HEAD["rz"] * K + 0.02, HEAD["ry"] + 0.02)
+keep_f = (cv[cf][:, :, 2] >= PZ(215)).all(1)
+add("HairCrown", "HairTex", cv, cf[keep_f], {"head": np.ones(len(cv))}, uv=front_uv(cv))
 
-# ------------------------------------------------------------------ collar-capelet, button
-# the capelet wraps an elliptic cylinder round the shoulders (its right end tucks behind the cape edge) and its
-# top curls back to the neck; a thin cloth slab, thickness along the surface normal
-COL_RX, COL_D = 190.0, 0.36
-def collar_base(x, y):
-    u = np.clip((np.asarray(x, float) - CX) / COL_RX, -0.995, 0.995)
-    d = TORSO_Y0 - COL_D * np.sqrt(1 - u ** 2)
-    top = np.where(np.asarray(x, float) > 330, 384.0, 397.0)
-    tt = np.clip((np.asarray(y, float) - top) / 14, 0, 1); tt = tt * tt * (3 - 2 * tt)
-    neck = TORSO_Y0 - 0.08
-    return neck + (d - neck) * tt
-collar_m = load("collar")
-ext = collar_m[:, 462:468].any(1)
-collar_m[ext, 462:481] = True                                        # continue under the cape's front edge
-grey_ref = (fs < 0.14) & (fvv >= 0.3) & (fvv < 0.95)
-up = grey_ref & (YY >= 383) & (YY < 400) & (XX > 330) & (XX < 481) & ~ndimage.binary_dilation(load("hair_top") | (fvv < 0.3), iterations=1)
-lab_u, _ = ndimage.label(up | collar_m)
-collar_m = np.isin(lab_u, np.unique(lab_u[collar_m])) & (lab_u > 0)
-collar_m = ndimage.binary_closing(collar_m, iterations=2) & (XX <= 322)
-pillow("Collar", "Collar", collar_m, collar_base, 0.3, 0.25, one("chest"), grid=3, cap=(0.03, 0.02), normal=True)
-button_y = float(collar_base(np.array([CX]), np.array([426.0]))[0]) - 0.05
-pillow("Button", "Button", load("button"), const(button_y), 0.35, 0.25, one("chest"), grid=2)
+# braid: the drawn braid (plait, tie, tuft) as a relief painted with the drawing, along a depth curve from inside the
+# side lock (its top end hides under the lock) forward over the capelet
+BDEP = ([326, 340, 362, 393, 420, 446], [0.0, -0.12, -0.27, -0.41, -0.5, -0.54])
+pillow("Braid", "HairTex", braid_m & (YY >= 326), lambda x, y: np.interp(y, *BDEP), 0.8, 0.6,
+       lerp_bones([(330, "head"), (390, "braid1"), (440, "braid2")]), grid=2, min_area=20, uv=True)
+
+# ------------------------------------------------------------------ ring, button, folds
+# the capelet is the hood's own front panels wrapping both shoulders to the ring at the throat (see FLAP_X / FLAP_XL)
+def capelet_front_y(xpx, ypx): return np.atleast_1d(shell_front_y(xpx, ypx))
+collar_m = load("collar")                                       # (what the curtain treats as not-lining)
+# the ring at the throat (a torus) with the round button inside it, and the cloth folds pulled through it
+RING = (CX, 426.0)
+ring_y = float(min(shell_front_y(280.0, RING[1]), shell_front_y(304.0, RING[1]))) - 0.03
+uu_r, vv_r = np.meshgrid(np.linspace(0, 2 * np.pi, 40, endpoint=False), np.linspace(0, 2 * np.pi, 12, endpoint=False))
+Rr, rr = 20 * K, 5.5 * K
+tv = np.stack([PX(RING[0]) + (Rr + rr * np.cos(vv_r)) * np.cos(uu_r), ring_y - rr * np.sin(vv_r), PZ(RING[1]) + (Rr + rr * np.cos(vv_r)) * np.sin(uu_r)], -1).reshape(-1, 3)
+tf = []
+for j in range(12):
+    for i in range(40):
+        a_, b_, c_, d_ = j * 40 + i, j * 40 + (i + 1) % 40, ((j + 1) % 12) * 40 + (i + 1) % 40, ((j + 1) % 12) * 40 + i
+        tf += [[a_, b_, c_], [a_, c_, d_]]
+add("Ring", "Button", tv, tf, {"chest": np.ones(len(tv))})
+bv_, bf_ = ellipsoid(PX(RING[0]), PZ(RING[1]), ring_y + 0.01, 12.5 * K, 12.5 * K, 0.035, 24, 12)
+add("Button", "Button", bv_, bf_, {"chest": np.ones(len(bv_))})
+fv_, ff_ = [], []
+for (x0_, y0_), (x1_, y1_) in (((268, 419), (236, 404)), ((269, 434), (244, 452)), ((316, 419), (364, 400)), ((315, 435), (380, 466))):
+    n_ = 14; tt_ = np.linspace(0, 1, n_)
+    px_, py_ = x0_ + (x1_ - x0_) * tt_, y0_ + (y1_ - y0_) * tt_
+    wid = 2.6 * np.sin(np.pi * np.clip(tt_ * 0.9 + 0.1, 0, 1))      # tapered stroke (px half-width)
+    dx_, dy_ = x1_ - x0_, y1_ - y0_; L_ = np.hypot(dx_, dy_); nx_, ny_ = -dy_ / L_, dx_ / L_
+    dep = (shell_front_y(px_, py_) if x0_ > CX else capelet_front_y(px_, py_)) - 0.006   # right folds lie on the hood's panel
+    base_ = sum(len(v) for v in fv_)
+    pts_ = np.concatenate([np.stack([PX(px_ + nx_ * wid), dep, PZ(py_ + ny_ * wid)], -1), np.stack([PX(px_ - nx_ * wid), dep, PZ(py_ - ny_ * wid)], -1)])
+    fv_.append(pts_)
+    for k_ in range(n_ - 1):
+        ff_ += [[base_ + k_, base_ + n_ + k_, base_ + k_ + 1], [base_ + k_ + 1, base_ + n_ + k_, base_ + n_ + k_ + 1]]
+FV_ = np.concatenate(fv_)
+add("Folds", "HoodInner", FV_, ff_, {"chest": np.ones(len(FV_))})
 
 # ------------------------------------------------------------------ shorts, legs
 sh = load("shorts")
@@ -425,8 +472,6 @@ tube("Sleeve_R", "Top", [(208, 470), (180, 448), (154, 428)], [29, 27, 24], [-0.
 tube("Sleeve_L", "Top", [(386, 486), (408, 494), (430, 500)], [24, 22, 20], [-0.24, -0.37, -0.5], one("upperarm_L"))
 tube("Arm_R", "Skin", [(150, 426), (141, 416), (131, 404)], [10.5, 10, 9.5], [-0.47, -0.6, -0.72], one("forearm_R"), nseg=14)
 tube("Arm_L", "Skin", [(428, 497), (444, 500), (460, 503)], [10.5, 10, 9.5], [-0.5, -0.66, -0.8], one("forearm_L"), nseg=14)
-pillow("Glove_R", "Glove", largest(load("glove_r")), const(-0.76), 0.9, 0.45, one("hand_R"), grid=2)
-pillow("Glove_L", "Glove", largest(load("glove_l")), const(-0.84), 0.9, 0.45, one("hand_L"), grid=2)
 # koala face on the hood
 for nm, part in (("KoalaNose", "koala_nose"), ("KoalaEye_R", "koala_eye_r"), ("KoalaEye_L", "koala_eye_l")):
     pillow(nm, "Nose", load(part), lambda x, y: shell_front_y(x, y) - 0.004, 0.45 if nm == "KoalaNose" else 0.25, 0.1, one("head"), grid=2)
@@ -456,6 +501,8 @@ hw_head = HEAD["rx"] * np.sqrt(np.clip(1 - ((hy - HEAD["cy"]) / HEAD["rz"]) ** 2
 hd_head = HEAD["ry"] * np.sqrt(np.clip(1 - ((hy - HEAD["cy"]) / HEAD["rz"]) ** 2, 0, 1))
 aL = np.maximum(outer_edge(-1), hw_head + 14 + (CX - HEAD["cx"]))
 aR = np.maximum(outer_edge(1), hw_head + 14 - (CX - HEAD["cx"]))
+aL = np.maximum(aL, CX - np.interp(hy, row_y, xL_now) + 6)     # the hood edges before the capelet panels: the hair
+aR = np.maximum(aR, np.interp(hy, row_y, xR_now) - CX + 6)     # behind the panels still fills the corners
 HYC = HEAD["yc"]
 bb = np.maximum(np.where(hy < HEAD["cy"], hd_head, HEAD["ry"]) + 0.06, 0.3)
 # keep the sheet (with its thickness) inside the cape's inner surface
@@ -468,7 +515,7 @@ for i in range(len(hy)):
         if ((xx / max(sa_in[i], 1e-3)) ** 2 + (yy_ / max(sb_in[i], 1e-3)) ** 2).max() <= 0.97 ** 2: break
         if bb[i] > 0.3: bb[i] *= 0.97
         else: aL[i] *= 0.97; aR[i] *= 0.97
-# where may the curtain be seen: everywhere except the cape lining inside the opening
+# where may the curtain be seen: wherever the drawing does not show grey (lining or hood)
 white = (fs < 0.06) & (fvv > 0.97)
 frame = np.zeros((Hpx, Wpx), bool); frame[:5] = frame[-5:] = True; frame[:, :5] = frame[:, -5:] = True
 lab_bg, _ = ndimage.label(white | frame)
@@ -478,10 +525,8 @@ allparts = face_region | collar_m          # grey things that are not lining
 for nm in ("glove_r", "glove_l", "button", "shorts", "ear_in_r", "ear_in_l"):
     allparts |= load(nm)
 allparts = ndimage.binary_dilation(allparts, iterations=2)
-oL = np.interp(np.arange(Hpx), row_y, c_px - ratioL * a_px); oR = np.interp(np.arange(Hpx), row_y, c_px + ratioR * a_px)
-in_open = (XX > oL[:, None] + 3) & (XX < oR[:, None] - 3) & (YY > top_hole) & (YY < hem_y)
-in_open |= (YY > 676) & fg                 # the bottom of the opening shows lining right to the hem
-keep = fg & ~(grey_px & in_open & ~allparts)
+allparts |= (XX > 330) & (XX < 470) & (YY > 378) & (YY < 476)
+keep = fg & ~(grey_px & ~allparts)        # grey outside the opening is behind the hood anyway
 S_U = 150.0
 NU = int(np.pi * S_U) + 1
 uu = np.linspace(-np.pi / 2, np.pi / 2, NU)
@@ -493,8 +538,22 @@ u_v = (P[:, 0] - 3) / (NU - 1) * np.pi - np.pi / 2
 y_v = P[:, 1] - 3 + HY0
 a_v = np.where(u_v < 0, np.interp(y_v, hy, aL), np.interp(y_v, hy, aR)) * K
 b_v = np.interp(y_v, hy, bb)
-base = np.stack([a_v * np.sin(u_v), HYC + b_v * np.cos(u_v), PZ(y_v)], -1)
-n_o = np.stack([b_v * np.sin(u_v), a_v * np.cos(u_v), np.zeros_like(u_v)], -1); n_o /= np.linalg.norm(n_o, axis=1, keepdims=True)
+# below the shoulders the long hair's sides hang flat just behind the body, facing front like the drawing's long hair
+# beside the shirt (an ellipse turned them sideways: a thin, stretched strip in the gap); only behind the torso does
+# the hair curve back
+tm_y = np.array([y for y in range(Hpx) if tm[y].any()])
+hwL_t = np.array([CX - np.nonzero(tm[y])[0].min() for y in tm_y]); hwR_t = np.array([np.nonzero(tm[y])[0].max() - CX for y in tm_y])
+Y_SIDE = 0.12
+def hair_depth(u, yr, a_, b_):
+    hw_ = np.where(u < 0, np.interp(yr, tm_y, hwL_t), np.interp(yr, tm_y, hwR_t)) * K
+    s0 = np.clip(hw_ / a_, 0.05, 0.98)
+    w_back = 1 - smoothstep(s0 - 0.3, s0, np.abs(np.sin(u)))
+    y_ell = HYC + b_ * np.cos(u)
+    return y_ell + ((y_ell * w_back + Y_SIDE * (1 - w_back)) - y_ell) * smoothstep(420, 470, yr)
+base = np.stack([a_v * np.sin(u_v), hair_depth(u_v, y_v, a_v, b_v), PZ(y_v)], -1)
+du_ = 1e-3
+dyu = (hair_depth(u_v + du_, y_v, a_v, b_v) - hair_depth(u_v - du_, y_v, a_v, b_v)) / (2 * du_)
+n_o = np.stack([-dyu, a_v * np.cos(u_v), np.zeros_like(u_v)], -1); n_o /= np.linalg.norm(n_o, axis=1, keepdims=True)
 th = 0.04 * np.sqrt(np.clip(1 - (1 - np.minimum(dd / 5.0, 1)) ** 2, 0, 1)); th[:nb] = 0
 remap = np.arange(len(P)); remap[nb:] = len(P) + np.arange(len(P) - nb)
 to = tri.copy(); flip = cross2d(P, to) < 0; to[flip] = to[flip][:, ::-1]        # outer side faces away from the body
@@ -507,7 +566,7 @@ chL = lerp_bones([(380, "head"), (440, "chest"), (560, "hair_L1"), (690, "hair_L
 cw = {}
 for dct, w in ((chR, wr), (chL, 1 - wr)):
     for k_, v_ in dct.items(): cw[k_] = cw.get(k_, 0) + v_ * w
-add("HairLong", "Hair", cverts, cfaces, cw)
+add("HairLong", "HairTex", cverts, cfaces, cw, uv=front_uv(cverts))
 print("curtain rows a/b sample:", [(int(y), int(aL[i]), int(aR[i]), round(float(bb[i]), 2)) for i, y in enumerate(hy) if y % 60 == 15])
 
 # ------------------------------------------------------------------ bones (reference pixels -> units)
@@ -533,8 +592,8 @@ BONES = [
     ("thigh_L", "hips", P3(340, 660), P3(350, 695)),
     ("shin_L", "thigh_L", P3(350, 695), P3(355, 718)),
     ("foot_L", "shin_L", P3(355, 718), P3(358, 732, -0.05)),
-    ("braid1", "head", P3(150, 330, -0.08), P3(186, 390, -0.35)),
-    ("braid2", "braid1", P3(186, 390, -0.35), P3(212, 444, -0.5)),
+    ("braid1", "head", P3(150, 330, -0.08), P3(186, 390, -0.39)),
+    ("braid2", "braid1", P3(186, 390, -0.39), P3(212, 444, -0.54)),
     ("hair_R1", "chest", P3(140, 440, 0.45), P3(125, 560, 0.5)),
     ("hair_R2", "hair_R1", P3(125, 560, 0.5), P3(150, 690, 0.45)),
     ("hair_L1", "chest", P3(444, 440, 0.45), P3(462, 560, 0.5)),
@@ -543,6 +602,25 @@ BONES = [
     ("cape_L", "chest", P3(520, 470, 0.2), P3(470, 700, 0.1)),
     ("cape_R", "chest", P3(64, 470, 0.2), P3(114, 700, 0.1)),
 ]
+
+# hands: simple round chibi mitten hands (palm + thumb) at the wrists, pointing along the hand bones; they read well
+# in any pose (the drawn waving / pointing hands looked odd hanging down)
+def oell(c3, e1, e2, e3, a, b, c, nu=16, nv=10):
+    uu, vv = np.meshgrid(np.linspace(0, 2 * np.pi, nu, endpoint=False), np.linspace(0, np.pi, nv + 1))
+    pts = c3 + (np.cos(vv) * a)[..., None] * e1 + (np.sin(vv) * np.cos(uu) * b)[..., None] * e2 + (np.sin(vv) * np.sin(uu) * c)[..., None] * e3
+    f = []
+    for j in range(nv):
+        for i in range(nu):
+            a_, b_ = j * nu + i, j * nu + (i + 1) % nu
+            f += [[a_, b_, (j + 1) * nu + (i + 1) % nu], [a_, (j + 1) * nu + (i + 1) % nu, (j + 1) * nu + i]]
+    return pts.reshape(-1, 3), np.array(f)
+for side, (w, tip) in (("R", ((132, 402, -0.72), (104, 368, -0.78))), ("L", ((458, 502, -0.8), (518, 516, -0.86)))):
+    W3, T3 = np.array(P3(*w)), np.array(P3(*tip))
+    e1 = (T3 - W3) / np.linalg.norm(T3 - W3); e3 = np.array([0, -1.0, 0]); e3 -= e1 * (e3 @ e1); e3 /= np.linalg.norm(e3)
+    e2 = np.cross(e1, e3)
+    pv, pf = oell(W3 + e1 * 0.06, e1, e2, e3, 0.066, 0.05, 0.036)
+    tv_, tf_ = oell(W3 + e1 * 0.035 + e3 * 0.03 + e2 * 0.02, e1 * 0.8 + e3 * 0.6, e2, np.cross(e1 * 0.8 + e3 * 0.6, e2), 0.03, 0.018, 0.018, 10, 6)
+    add("Hand_" + side, "Glove", np.concatenate([pv, tv_]), np.concatenate([pf, tf_ + len(pv)]), {"hand_" + side: np.ones(len(pv) + len(tv_))})
 
 np.savez_compressed(f"{B}/kyoko_geo.npz", parts=np.array([json.dumps({
     "name": p["name"], "material": p["material"], "verts": p["verts"].tolist(), "faces": p["faces"].tolist(),
