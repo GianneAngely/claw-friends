@@ -95,6 +95,10 @@ FLAP_L = (row_y >= 330) & (row_y <= 486)
 xL_now = c_px - ratioL * a_px
 ratioL = np.where(FLAP_L, (c_px - np.interp(row_y, np.r_[330, FLAP_XL[0], 486], np.r_[np.interp(330, row_y, xL_now), FLAP_XL[1], np.interp(486, row_y, xL_now)])) / np.maximum(a_px, 1), ratioL)
 thL, thR = np.arcsin(np.clip(ratioL, 0, 0.97)), np.arcsin(np.clip(ratioR, 0, 0.97))
+# below the hips the front edges turn out to the sides (the drawing shows lining round the legs right down to the
+# bottom): no lip of cloth crosses in front of the legs, the cloth that is left curls under behind them
+w_bot = smoothstep(652, 708, row_y)   # (a long turn: a short one left a pointed corner at the bottom of each front edge)
+thL, thR = thL + (np.pi / 2 - thL) * w_bot, thR + (np.pi / 2 - thR) * w_bot
 DEPTH = 0.8   # egg depth / width
 NS, T = 88, 0.036
 # ring angles are the same on every row (no twisting between rows with different openings, e.g. along the capelet's
@@ -239,13 +243,17 @@ tex = np.concatenate([rgbf, alpha[..., None]], -1)[y0:y1 + 1, x0:x1 + 1]
 Image.fromarray((np.clip(tex, 0, 1) * 255).astype(np.uint8), "RGBA").resize(((x1 - x0 + 1) * 3, (y1 - y0 + 1) * 3), Image.LANCZOS).save(f"{B}/kyoko_face.png")
 
 # hair texture (game/assets/kyoko_hair.png): the drawn hair inside the hair parts, the plain hair colour elsewhere
-HAIR_RGB = np.array([163, 40, 88], np.float32) / 255
+HAIR_RGB = np.array([168, 58, 101], np.float32) / 255     # the drawn hair's base tone
 hair_region = np.zeros((Hpx, Wpx), bool)
 for nm in ("hair_top", "braid", "hair_left", "hair_right", "hair_back"):
     hair_region |= load(nm)
 hair_region = ndimage.binary_dilation(hair_region, iterations=1)
 w_h = ndimage.gaussian_filter(hair_region.astype(np.float32), 1.0)[..., None]
-htex = rgbf * w_h + HAIR_RGB * (1 - w_h)
+# even colour: the drawn shadow tones (a darker band under the hood, darker inner strands) read as patches in 3D, so
+# every saturated mid/dark tone becomes the base tone; the strand lines (dark, less saturated) and the highlights stay
+hv_ = rgbf.max(-1); hs_ = np.where(hv_ > 0, (hv_ - rgbf.min(-1)) / np.maximum(hv_, 1e-6), 0)
+hair_draw = np.where(((hs_ > 0.55) & (hv_ > 0.34))[..., None], HAIR_RGB, rgbf)
+htex = hair_draw * w_h + HAIR_RGB * (1 - w_h)
 Image.fromarray((np.clip(htex, 0, 1) * 255).astype(np.uint8)).resize((Wpx * 2, Hpx * 2), Image.LANCZOS).save("/Users/gianneangely/Documents/ClawFriends/game/assets/kyoko_hair.png", optimize=True)
 
 # ------------------------------------------------------------------ mesh builders
@@ -476,10 +484,15 @@ legs = load("legs")
 lab_l, _ = ndimage.label(legs)
 for side, cxp in (("R", 232), ("L", 358)):     # character's right leg is on the image left
     ids = [i for i in range(1, lab_l.max() + 1) if abs(np.nonzero(lab_l == i)[1].mean() - cxp) < 60]
-    ly, lcx, lhw = mask_rows(np.isin(lab_l, ids), 2, 2)
-    ft = smoothstep(704, 733, ly)                                  # the foot reaches forward
-    ring_volume("Leg_" + side, "Skin", [(y, cx, hw, hw * K * (1 + 1.0 * f), TORSO_Y0 - 0.09 - 0.06 * f)   # under the shorts' middle, feet forward
-                                        for y, cx, hw, f in zip(ly, lcx, lhw, ft)],
+    ly, lcx, _ = mask_rows(np.isin(lab_l, ids), 2, 2)
+    # a smooth chibi leg on the drawn centre line: it tapers to the ankle and stays round (the drawing's narrow ankle
+    # over a wider foot made an hourglass that drew a line round the ankle); the foot grows forward out of the shin in
+    # a long gentle curve, the heel stays put
+    lcx = np.polyval(np.polyfit(ly, lcx, 1), ly)
+    lhw = np.interp(ly, [676, 690, 712, 733], [12.0, 12.5, 10.0, 10.0])
+    ft = smoothstep(696, 731, ly)
+    r0 = lhw * K; dy = r0 * (1 + 1.3 * ft); yc = TORSO_Y0 - 0.09 - 0.9 * (dy - r0)
+    ring_volume("Leg_" + side, "Skin", [(y, cx, hw, d, c) for y, cx, hw, d, c in zip(ly, lcx, lhw, dy, yc)],
                 lerp_bones([(680, "thigh_" + side), (700, "shin_" + side), (722, "foot_" + side)]), nseg=20)
 
 # sleeves and forearms: round tubes along the arm, sized from the reference
@@ -542,6 +555,7 @@ for nm in ("glove_r", "glove_l", "button", "shorts", "ear_in_r", "ear_in_l"):
 allparts = ndimage.binary_dilation(allparts, iterations=2)
 allparts |= (XX > 330) & (XX < 470) & (YY > 378) & (YY < 476)
 keep = fg & ~(grey_px & ~allparts)        # grey outside the opening is behind the hood anyway
+keep = ndimage.binary_opening(keep, structure=np.ones((1, 7), bool)) | (keep & ~ndimage.binary_dilation(grey_px, iterations=4))   # no thin strands left on the lining
 S_U = 150.0
 NU = int(np.pi * S_U) + 1
 uu = np.linspace(-np.pi / 2, np.pi / 2, NU)
@@ -634,8 +648,10 @@ for side, (w, tip) in (("R", ((132, 402, -0.72), (104, 368, -0.78))), ("L", ((45
     W3, T3 = np.array(P3(*w)), np.array(P3(*tip))
     e1 = (T3 - W3) / np.linalg.norm(T3 - W3); e3 = np.array([0, -1.0, 0]); e3 -= e1 * (e3 @ e1); e3 /= np.linalg.norm(e3)
     e2 = np.cross(e1, e3)
-    pv, pf = oell(W3 + e1 * 0.06, e1, e2, e3, 0.066, 0.05, 0.036)
-    tv_, tf_ = oell(W3 + e1 * 0.035 + e3 * 0.03 + e2 * 0.02, e1 * 0.8 + e3 * 0.6, e2, np.cross(e1 * 0.8 + e3 * 0.6, e2), 0.03, 0.018, 0.018, 10, 6)
+    # a little oversized, like the drawing's chibi hands: wide across the knuckles (e3), thin palm-to-back (e2)
+    pv, pf = oell(W3 + e1 * 0.07, e1, e2, e3, 0.085, 0.05, 0.07, 20, 12)
+    ta = e1 * 0.5 + e3 * 0.866
+    tv_, tf_ = oell(W3 + e1 * 0.045 + e3 * 0.058, ta, e2, np.cross(ta, e2), 0.04, 0.024, 0.024, 12, 8)   # thumb on the front edge
     add("Hand_" + side, "Glove", np.concatenate([pv, tv_]), np.concatenate([pf, tf_ + len(pv)]), {"hand_" + side: np.ones(len(pv) + len(tv_))})
 
 np.savez_compressed(f"{B}/kyoko_geo.npz", parts=np.array([json.dumps({
