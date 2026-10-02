@@ -52,5 +52,6 @@ if (hide.length) scene.traverse(o => { if (hide.some(h => o.name.startsWith(h)))
 renderer.render(scene, cam);
 window.KIDS = kids;
 window.RENDER = () => renderer.render(scene, cam);   // for tools/cdpclip.mjs (animation clips)
+window.THREE = THREE;   // for probes run from tools/cdpshot.mjs
 window.READY = true;
 })();

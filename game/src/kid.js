@@ -77,9 +77,13 @@ export async function loadKid() {
 // 40 at toe-off, 60 in initial swing; ankle plantar-flexed 20 at toe-off), a little bigger for her short legs.
 // hip + = leg forward, knee + = bent, ankle + = toes up
 const GAIT = {
-  hip: [[0, 30], [.12, 25], [.3, 6], [.5, -14], [.6, -6], [.73, 20], [.87, 32]],
-  knee: [[0, 5], [.12, 18], [.3, 6], [.5, 8], [.6, 40], [.72, 62], [.87, 26]],
-  ankle: [[0, 10], [.08, -6], [.3, 6], [.48, 10], [.6, -20], [.73, -4], [.88, 4]],
+  hip: [[0, 22], [.12, 18], [.3, 4], [.5, -14], [.6, -8], [.73, 14], [.87, 26], [.95, 24]],
+  knee: [[0, 2], [.12, 16], [.3, 4], [.45, 8], [.52, 22], [.6, 42], [.72, 62], [.85, 42], [.95, 16]],
+  // the foot's own angle to the floor (toes up +): heel first, flat through the stance, rolling up onto the toes, then
+  // level again through the swing. The ankle makes up the difference to the shin, so her big chibi feet stand flat
+  // and their toes never dig into the floor on the swing (an ankle curve alone left the toes pointing down).
+  // Tuned with previews/gaitsim.py so the heel lands at 0, the foot is flat 0.08-0.44 and leaves the floor at 0.6
+  foot: [[0, 10], [.07, 0], [.4, 0], [.5, -4], [.6, -12], [.68, -4], [.8, 0], [.91, 0], [.97, 7]],
 };
 // smooth periodic curve through [phase, value] keys (cubic Hermite, wraps at 1)
 function cyc(keys, p) {
@@ -93,6 +97,7 @@ function cyc(keys, p) {
   return (2 * u ** 3 - 3 * u * u + 1) * v0 + (u ** 3 - 2 * u * u + u) * m0 + (-2 * u ** 3 + 3 * u * u) * v1 + (u ** 3 - u * u) * m1;
 }
 const DEG = Math.PI / 180;
+const LEAN = .025;   // the body leans forward a little while walking (radians)
 function spring(s, target, dt, k = 70, c = 7, kick = 0) {
   s.v += (k * (target - s.a) - c * s.v) * dt + kick;
   s.a += s.v * dt;
@@ -171,6 +176,14 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     ARM[s] = { rest, cur: { upper: V(g * .18, -1, .04), fore: V(g * .07, -1, .42), thumb: V(-g * .2, 0, 1) } };
   }
   const _qu = new THREE.Quaternion(), _qf = new THREE.Quaternion(), _qh = new THREE.Quaternion();
+  // feet on the floor: a heel and a toe point under each foot, kept in the foot bone's space. Each frame the body is
+  // set so the lowest of them touches the floor - the standing foot stays down and the walk's rise and fall comes
+  // from the legs themselves (lifting the whole body, the standing foot hovered and paddled in the air)
+  const FEET = ["L", "R"].map(s => {
+    const b = B["foot_" + s].b, a = wp(b), inv = b.matrixWorld.clone().invert();
+    return { b, pts: [new THREE.Vector3(a.x, .015, a.z - .03), new THREE.Vector3(a.x, .015, a.z + .14)].map(p => p.applyMatrix4(inv)) };   // (the sole is .015 up)
+  });
+  const _fp = new THREE.Vector3();
   function aimArm(s, goalUpper, goalFore, goalThumb, dt) {
     const a = ARM[s], k = 1 - Math.exp(-dt * 20);
     a.cur.upper.lerp(goalUpper, k).normalize(); a.cur.fore.lerp(goalFore, k).normalize(); a.cur.thumb.lerp(goalThumb, k).normalize();
@@ -185,7 +198,7 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
   const lerpV = (a, b, t) => a.clone().lerp(b, t).normalize();
 
   // ---------- animation state ----------
-  let phase = 0, amt = 0, t = 0, prevBob = 0, prevYaw = null, yawRateS = 0, turnS = 0, expr = "idle", exprT = 0, blinkT = 2 + Math.random() * 3;
+  let phase = 0, amt = 0, t = 0, prevBob = 0, bobVel = 0, prevYaw = null, yawRateS = 0, turnS = 0, expr = "idle", exprT = 0, blinkT = 2 + Math.random() * 3;
   const sp = { ear: { a: 0, v: 0 }, hair: { a: 0, v: 0 }, hairZ: { a: 0, v: 0 }, braid: { a: 0, v: 0 }, cape: { a: 0, v: 0 }, capeZ: { a: 0, v: 0 }, flare: { a: 0, v: 0 } };
   const setMap = name => { const m = FACES[name]; if (faceMat.map !== m) { faceMat.map = m; faceMat.needsUpdate = true; } };
 
@@ -209,29 +222,30 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       // legs: a real walk cycle - heel strike with the toes up, the knee gives a little as the weight comes on, the
       // leg pushes back and rolls off the toes, then swings through with the knee bent and reaches forward again
       for (const [side, p] of [["L", pL], ["R", pR]]) {
-        rot("thigh_" + side, "x", -cyc(GAIT.hip, p) * DEG * amt);
-        rot("shin_" + side, "x", cyc(GAIT.knee, p) * DEG * amt);
-        rot("foot_" + side, "x", -cyc(GAIT.ankle, p) * DEG * amt);
+        const hip = cyc(GAIT.hip, p), knee = cyc(GAIT.knee, p);
+        rot("thigh_" + side, "x", -hip * DEG * amt);
+        rot("shin_" + side, "x", knee * DEG * amt);
+        rot("foot_" + side, "x", (hip - knee - cyc(GAIT.foot, p)) * DEG * amt - LEAN * amt);   // (minus the body's lean)
       }
       // body: lowest just after a foot lands, highest over the standing foot, leaning over it (a little chibi waddle);
       // the pelvis turns with the forward leg and the shoulders turn the other way, the head stays facing ahead
       const happy = expr === "happy", sad = expr === "sad";
       const hop = happy ? Math.abs(Math.sin(t * 8.5)) * .22 : 0;
       const bN = (1 - Math.cos(2 * TAU * (pL - .07))) / 2;
-      const bob = (bN * .1 + .02) * amt + hop;
       turnS += (THREE.MathUtils.clamp(-yawRate * .012, -.04, .04) * amt - turnS) * Math.min(1, dt * 8);   // eases into turns
       const turn = turnS;
       const roll = -.02 * Math.cos(TAU * (pL - .3)) * amt + turn;   // (a person stays upright: a big rock read as a wobbling toy)
-      rot("root", "z", roll); rot("root", "x", .035 * amt);
-      rot("hips", "y", -.1 * cw * amt);
+      rot("root", "z", roll); rot("root", "x", LEAN * amt);
+      rot("hips", "y", -.07 * cw * amt);   // (about 4 degrees, like a normal walk)
       rot("chest", "y", .18 * cw * amt); rot("chest", "x", .025 * Math.sin(t * 2.3) * idle + (sad ? .05 : 0));
       rot("head", "y", -.08 * cw * amt + THREE.MathUtils.clamp(yawRate * .05, -.3, .3));   // the head leads into a turn
       rot("head", "z", -roll + .04 * Math.sin(t * .9) * idle);
       rot("head", "x", -.04 * amt + .03 * (bN - .5) * amt + (sad ? .08 : 0) + .02 * Math.sin(t * 1.7) * idle);
-      // the weight moves over the standing foot (a small side-to-side shift) and the free side of the pelvis dips
-      const shift = .035 * Math.cos(TAU * (pL - .3)) * amt;
-      rot("hips", "z", .05 * Math.cos(TAU * (pL - .3)) * amt);
-      B.root.b.position.copy(B.root.p0); B.root.b.position.y += bob; B.root.b.position.x += shift;
+      // the free side of the pelvis dips a little (the body leans over the standing foot above); the thighs keep
+      // their own line, so the feet stay under the hips instead of swinging sideways with the pelvis
+      const drop = .025 * Math.cos(TAU * (pL - .3)) * amt;
+      rot("hips", "z", drop); rot("thigh_L", "z", -drop); rot("thigh_R", "z", -drop);
+      B.root.b.position.copy(B.root.p0);
       // arms
       for (const side of ["L", "R"]) {
         const g = side === "L" ? 1 : -1;
@@ -258,7 +272,7 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
         aimArm(side, up, fo, th, dt);
       }
       // springs: hair, braid, ears and cape lag behind bounces, flow back while walking, swing on turns
-      const vy = (bob - prevBob) / dt; prevBob = bob;
+      const vy = bobVel;   // (from the last frame's floor contact)
       const ear = spring(sp.ear, 0, dt, 90, 6, -vy * .9 * dt);
       both("ear", "x", ear * .4 - .03 * amt);
       const hair = spring(sp.hair, .12 * amt, dt, 60, 6, -vy * .3 * dt);
@@ -283,6 +297,14 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       if (blinkT < -.13) blinkT = 2 + Math.random() * 3.5;
       setMap(expr !== "idle" ? expr : blinking ? "blink" : "idle");
       apply();
+      // the lowest heel or toe on the floor, then the happy hop on top
+      model.updateMatrixWorld(true);
+      const floor = root.matrixWorld.elements[13];
+      let low = Infinity;
+      for (const f of FEET) for (const q of f.pts) low = Math.min(low, _fp.copy(q).applyMatrix4(f.b.matrixWorld).y - floor);
+      const bob = -low + hop;
+      B.root.b.position.y += bob;
+      bobVel = (bob - prevBob) / dt; prevBob = bob;
     },
   };
 }
