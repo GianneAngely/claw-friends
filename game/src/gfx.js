@@ -67,12 +67,50 @@ export function toonFlat(c, shadow = .85) {
   if (!cache.has(k)) cache.set(k, animeMat(c, {}, shadow, 0));
   return cache.get(k);
 }
-// material painted with a texture that carries its own drawn shading (Kyoko's hair): shown as drawn, like the face -
-// the cel shadow and the rim light turned the hair's far side into over-saturated magenta streaks
-export function toonTex(c, map) {
-  const k = "x" + c + "_" + map.uuid;
-  if (!cache.has(k)) cache.set(k, animeMat(c, { map }, 0, 0, 0, 0));
-  return cache.get(k);
+// material drawn from a texture of distance fields (Kyoko's hair), shown flat like the drawing - the cel shadow and
+// the rim light turned the hair's far side into over-saturated magenta streaks. Texture channels: R = signed distance
+// to the drawn lines' edge, G = to the highlights' edge, B = to the cut's edge (texels, + inside, 0.5 = on the edge;
+// map.userData.sdf = each channel's range, .pad = how far past the cut's edge the mesh surely reaches). Lines and
+// highlights stay crisp at any distance and the lines never get thinner than about half an outline on screen.
+// cut: the surface is cut out along B and outlined there at the 3D outlines' width, mostly inside the edge (alpha
+// to coverage smooths it). Widths are set where the surface is least foreshortened: on a part seen edge-on (the
+// braid, the bangs from the side) a line keeps its width on the surface and looks thin, as drawn on it would -
+// measured across the squeezed direction it grew over the whole part
+export function toonSdf(map, { base, hl, ink }, cut = false) {
+  const k = "sdf" + map.uuid + (cut ? "_cut" : "");
+  if (cache.has(k)) return cache.get(k);
+  const m = animeMat(0xFFFFFF, cut ? { map, alphaToCoverage: true } : { map }, 0, 0, 0, 0);
+  if (cut) m.defines = { SDF_CUT: "" };
+  const anime = m.onBeforeCompile;
+  m.onBeforeCompile = sh => {
+    anime(sh);
+    Object.assign(sh.uniforms, { px: outlineU.px, uSdf: { value: new THREE.Vector3(...map.userData.sdf) },
+      uPad: { value: map.userData.pad }, uBase: { value: new THREE.Color(base) }, uHl: { value: new THREE.Color(hl) },
+      uInk: { value: new THREE.Color(ink) }, uTexels: { value: new THREE.Vector2(map.image.width, map.image.height) } });
+    sh.fragmentShader = sh.fragmentShader
+      .replace("void main() {", "uniform float px, uPad;\nuniform vec3 uSdf, uBase, uHl, uInk;\nuniform vec2 uTexels;\nvoid main() {")
+      .replace("#include <map_fragment>", `#include <map_fragment>
+  {
+    vec3 f = (sampledDiffuseColor.rgb - .5) * uSdf;                       // texels from each edge
+    vec3 aa = max(vec3(length(vec2(dFdx(f.r), dFdy(f.r))), length(vec2(dFdx(f.g), dFdy(f.g))),
+                       length(vec2(dFdx(f.b), dFdy(f.b)))), 1e-4);         // texels per screen pixel across each edge
+    vec2 tx = dFdx(vMapUv * uTexels), ty = dFdy(vMapUv * uTexels);
+    float a2 = dot(tx, tx) + dot(ty, ty), det = abs(tx.x * ty.y - tx.y * ty.x);
+    float s = det / max(sqrt(.5 * (a2 + sqrt(max(a2 * a2 - 4.0 * det * det, 0.0)))), 1e-6);   // texels per pixel, least
+    float grow = max(0.0, .2 * px * s - 4.0);                              // (drawn lines are ~8 texels wide)
+    float ink = smoothstep(-.5, .5, (f.r + grow) / aa.r);
+    #ifdef SDF_CUT
+    float out_ = min(.4 * px * s, uPad), in_ = px * s - out_;
+    ink = max(ink, 1.0 - smoothstep(-.5, .5, (f.b - in_) / aa.b));
+    diffuseColor.a = clamp((f.b + out_) / aa.b + .5, 0.0, 1.0);
+    if (diffuseColor.a <= 0.0) discard;
+    #endif
+    diffuseColor.rgb = mix(mix(uBase, uHl, smoothstep(-.5, .5, f.g / aa.g)), uInk, ink);
+  }`);
+  };
+  m.customProgramCacheKey = () => "anime_sdf" + (cut ? "_cut" : "");
+  cache.set(k, m);
+  return m;
 }
 export function toon(c, opts = {}) {
   const k = "t" + c + JSON.stringify(opts, (key, v) => (v && v.isTexture ? v.uuid : v));

@@ -12,7 +12,9 @@ import faceHappy from "../assets/kyoko_face_happy.png";
 import faceSad from "../assets/kyoko_face_sad.png";
 import faceWow from "../assets/kyoko_face_wow.png";
 import hairPng from "../assets/kyoko_hair.png";
-import { toonFlat, toonTex, flat, outlineSkinned } from "./gfx.js";
+import hairCutPng from "../assets/kyoko_hair_cut.png";
+import hairInfo from "../assets/kyoko_hair.json";
+import { toonFlat, toonSdf, flat, outlineSkinned } from "./gfx.js";
 
 export const BASE = { hair: 0xA32858, hoodColor: 0xC7C7D0 };
 // wardrobe: the tee and the shorts come in the six colour sets W1..W6 (mix and match)
@@ -57,7 +59,7 @@ function palette(ch) {
 // ---------- model ----------
 let TEMPLATE = null;
 const FACES = {};
-let HAIR_TEX = null;   // her hair as drawn (strands, shading, highlights), projected from the front
+let HAIR_TEX = null, HAIR_CUT_TEX = null;   // her hair as drawn (lines, highlights), projected from the front
 export async function loadKid() {
   if (TEMPLATE) return;
   const buf = kyokoGlb.buffer.slice(kyokoGlb.byteOffset, kyokoGlb.byteOffset + kyokoGlb.byteLength);
@@ -68,8 +70,12 @@ export async function loadKid() {
     t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;   // glTF UV convention
     FACES[k] = t;
   }));
-  HAIR_TEX = await loader.loadAsync(hairPng);
-  HAIR_TEX.flipY = false; HAIR_TEX.colorSpace = THREE.SRGBColorSpace; HAIR_TEX.anisotropy = 4;
+  // distance fields, not colours (see toonSdf); the cut-out hair's texture covers only its box of the drawing: the
+  // whole drawing's UVs are mapped onto that box
+  const { box: [x0, y0, x1, y1], W, H, sdf, pad } = hairInfo;
+  [HAIR_TEX, HAIR_CUT_TEX] = await Promise.all([hairPng, hairCutPng].map(p => loader.loadAsync(p)));
+  for (const t of [HAIR_TEX, HAIR_CUT_TEX]) { t.flipY = false; t.anisotropy = 4; t.userData = { sdf, pad }; }
+  HAIR_CUT_TEX.repeat.set(W / (x1 - x0), H / (y1 - y0)); HAIR_CUT_TEX.offset.set(-x0 / (x1 - x0), -y0 / (y1 - y0));
 }
 // walk cycle, per leg: phase 0 = that heel touches down; stance 0-0.6, swing 0.6-1 (normal gait: initial contact,
 // loading response, mid stance, terminal stance, pre-swing, initial / mid / terminal swing). Joint angles in degrees
@@ -126,12 +132,12 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       continue;
     }
     if (name === "HairTex") {   // Kyoko's hair carries the drawing; the staff (other hair colours) get the plain colour
-      // her hair's lines are drawn in its texture, outline included: a 3D outline on top doubled them and showed
-      // through as scratches; plain hair needs it
-      if (ch.hair === BASE.hair) {
-        m.material = toonTex(0xFFFFFF, HAIR_TEX);
-        if (m.name.startsWith("HairLong")) outlineSkinned(m, ch.hair, INK);   // (the long hair is seen from above too)
-      } else { m.material = toonFlat(ch.hair, .8); outlineSkinned(m, ch.hair, INK); }
+      // the hair round her face (top, side locks, braid) is cut out along the outer edge of its drawn outline and
+      // outlined there by its own material (a 3D outline's hull folded into scratches on these thin reliefs); the long
+      // hair has a 3D outline, the crown under the hood none. Plain hair is outlined everywhere it shows
+      const drawn = ch.hair === BASE.hair, cut = /^(HairTop|Braid)/.test(m.name);
+      m.material = drawn ? toonSdf(cut ? HAIR_CUT_TEX : HAIR_TEX, hairInfo, cut) : toonFlat(ch.hair, .8);
+      if (!m.name.startsWith("HairCrown") && !(drawn && cut)) outlineSkinned(m, ch.hair, INK);
       continue;
     }
     if (name === "HoodRim") { m.material = flat(ch.hoodColor); continue; }   // the cloth's edge: one with the hood
