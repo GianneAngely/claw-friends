@@ -70,7 +70,9 @@ async function main() {
   scene.background = new THREE.Color(0xDCEFFB);
   const camera = new THREE.PerspectiveCamera(40, 1, .1, 300);
   // soft glow on the brightest areas, like a lit illustration
-  const composer = new EffectComposer(renderer);
+  // the scene is drawn into the composer's own render target: it needs its own multisampling (the canvas'
+  // antialias doesn't reach it) - without it every outline was jagged and broken up
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .22, .35, 1.04);
   composer.addPass(bloom);
@@ -118,6 +120,9 @@ async function main() {
   save.outfit = { ...DEFAULT_OUTFIT, ...(save.outfit || {}) };
   if (Q.get("outfit")) { const [hood, top, bottom] = Q.get("outfit").split("."); save.outfit = { hood, top, bottom }; }
   let kid = makeKid(save.outfit); scene.add(kid.root);
+  // ?hide=MeshName,... hides parts of the kid (and their outlines, named Name_line) for debugging
+  const HIDE = (Q.get("hide") || "").split(",").filter(Boolean);
+  if (HIDE.length) kid.root.traverse(o => { if (HIDE.some(h => o.name.startsWith(h))) o.visible = false; });
   kid.root.position.set(START.x, 0, START.z); kid.root.rotation.y = Math.PI;
   const kidBody = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(START.x, KID_Y, START.z));
   const kidCol = world.createCollider(RAPIER.ColliderDesc.capsule(1.2, 1.25).setCollisionGroups(G_KID), kidBody);
