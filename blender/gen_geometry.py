@@ -17,11 +17,6 @@ CX, FOOT = 292.0, 733.0   # reference column of the body centre, row of the sole
 def PX(x): return (np.asarray(x, float) - CX) * K
 def PZ(y): return (FOOT - np.asarray(y, float)) * K
 def load(name): return np.array(Image.open(f"{B}/parts/{name}.png")) > 127
-def smooth_mask(m, sigma=1.4, fill=True):
-    """hair silhouettes for the 3D outline: holes filled, 1-2 px jaggies (anti-aliasing, notches cut by strand lines)
-    rounded off - every one of them became a bump or a speck in the line"""
-    if fill: m = ndimage.binary_fill_holes(m)
-    return ndimage.gaussian_filter(m.astype(np.float32), sigma) > 0.5
 def largest(m):
     lab, n = ndimage.label(m)
     return lab == (np.argmax(ndimage.sum(m, lab, range(1, n + 1))) + 1) if n else m
@@ -271,65 +266,26 @@ x0, y0, x1, y1 = FACE_BOX
 tex = np.concatenate([rgbf, alpha[..., None]], -1)[y0:y1 + 1, x0:x1 + 1]
 Image.fromarray((np.clip(tex, 0, 1) * 255).astype(np.uint8), "RGBA").resize(((x1 - x0 + 1) * 3, (y1 - y0 + 1) * 3), Image.LANCZOS).save(f"{B}/kyoko_face.png")
 
-# hair textures (game/assets/kyoko_hair*.png): the drawing's hair redrawn as clean flat art - the base tone, the
-# highlights and the lines - stored as distance fields at 4x the drawing: R = signed distance to the lines' edge, G = to
-# the highlights' edge, B = to the cut's edge (texels, + inside, 0.5 = on the edge). The game draws them crisp at any
-# distance (a painted texture blurred its lines away when far) and keeps the lines from getting thinner than a minimum
-# on screen. The drawn shadow tones become the base tone (in 3D they read as patches).
-# The hair round the face (top, side locks, braid) is cut out along the OUTER edge of its drawn outline and outlined
-# there in the game (a 3D outline's hull folded into scratches on these thin reliefs). The long hair keeps a 3D
-# outline: its drawn outline is left out
+# hair texture (game/assets/kyoko_hair.png): the drawn hair inside the hair parts, the plain hair colour elsewhere
 HAIR_RGB = np.array([168, 58, 101], np.float32) / 255     # the drawn hair's base tone
-INK_RGB = np.array([42, 31, 46], np.float32) / 255        # the ink of the 3D outlines
-SC_H = 4
-def crisp_up(a, sc, lo=.3, hi=.55):
-    up = np.array(Image.fromarray(a.astype(np.float32), "F").resize((a.shape[1] * sc, a.shape[0] * sc), Image.BICUBIC))
-    up = ndimage.gaussian_filter(up, sc * 0.5)          # (smooths the pixel staircase of the drawing's lines)
-    t = np.clip((up - lo) / (hi - lo), 0, 1); return t * t * (3 - 2 * t)
-SDF_RANGE = [64.0, 64.0, 128.0]           # texels from -range/2 to +range/2 per channel
-def sdf(m, rng):
-    sd = np.where(m, ndimage.distance_transform_edt(m) - 0.5, 0.5 - ndimage.distance_transform_edt(~m))
-    return np.clip(0.5 + ndimage.gaussian_filter(sd, 1.0) / rng, 0, 1)
-def save_sdf(chans, path):
-    Image.fromarray((np.stack(chans, -1) * 255).round().astype(np.uint8)).save(path, optimize=True)
+hair_region = np.zeros((Hpx, Wpx), bool)
+for nm in ("hair_top", "braid", "hair_left", "hair_right", "hair_back"):
+    hair_region |= load(nm)
+hair_region = ndimage.binary_dilation(hair_region, iterations=1)
+# even colour: the drawn shadow tones (a darker band under the hood, darker inner strands) read as patches in 3D, so
+# they become the base tone. The drawn lines stay whole, anti-aliased edges included (taking those for shadow tone
+# had left the lines thin and broken)
 hh_, hs_, hv_ = hsv(rgbf)
+line_aa = ndimage.binary_dilation(hv_ < 0.3, iterations=1)
+hair_draw = np.where(((hs_ > 0.55) & (hv_ > 0.34) & ~line_aa)[..., None], HAIR_RGB, rgbf)
+# only hair colours and lines come from the drawing (skin or grey caught at the mask's edge became the base tone), and
+# the drawn outline just outside the masks is kept too: the mesh edges sit on it, so the drawn line meets the 3D
+# outline in one bold line (the texture used to fade to the base tone there, which drew a second, thin line)
 hairish = ((hh_ >= 318) | (hh_ <= 10)) & (hs_ >= 0.3)
-ink_all = np.clip((0.36 - hv_) / 0.2, 0, 1)
-DISK6 = np.hypot(*np.mgrid[-6:7, -6:7]) <= 6
-braid_solid = ndimage.binary_closing(load("braid"), structure=DISK6) | load("braid")   # one piece: the dark tie split it
-cut_body = smooth_mask(load("hair_top") | braid_solid)
-near = ndimage.binary_dilation(cut_body, iterations=3) & ~cut_body
-cut_alpha = np.maximum(cut_body.astype(np.float32), ink_all * near)       # the parts plus their drawn outline
-HAIR_CUT = cut_alpha > 0.3
-long_body = smooth_mask(load("hair_left") | load("hair_right") | load("hair_back")) & ~HAIR_CUT
-long_edge = ndimage.distance_transform_edt(long_body) < 3.0
-ink = ink_all * (HAIR_CUT | (long_body & ~long_edge))
-lab_i, n_i = ndimage.label(ink > 0.3)
-if n_i:                                            # no specks: bits of line left over by the edge band or the mask
-    sizes_i = ndimage.sum(ink > 0.3, lab_i, range(1, n_i + 1))
-    ink = ink * ~np.isin(lab_i, 1 + np.nonzero(sizes_i < 8)[0])
-hl = hairish & (hv_ > 0.72) & (HAIR_CUT | long_body)
-HL_RGB = np.median(rgbf[hl], 0) if hl.any() else np.array([.89, .55, .69], np.float32)
-hl_amt = np.clip((hv_ - 0.66) / 0.12, 0, 1) * hl
-ink4, hl4 = crisp_up(ink, SC_H) >= 0.5, crisp_up(hl_amt, SC_H) >= 0.5
-ink_f, hl_f = sdf(ink4, SDF_RANGE[0]), sdf(hl4, SDF_RANGE[1])
-save_sdf([ink_f, hl_f, np.ones_like(ink_f)], "/Users/gianneangely/Documents/ClawFriends/game/assets/kyoko_hair.png")
-# the cut-out parts get their own texture, cropped to them (8 px round the cut)
-ys_c, xs_c = np.nonzero(ndimage.binary_dilation(HAIR_CUT, iterations=8))
-CUT_BOX = [int(xs_c.min()), int(ys_c.min()), int(xs_c.max()) + 1, int(ys_c.max()) + 1]
-cx0, cy0, cx1, cy1 = CUT_BOX
-crop4 = (slice(cy0 * SC_H, cy1 * SC_H), slice(cx0 * SC_H, cx1 * SC_H))
-cut4 = crisp_up(cut_alpha, SC_H)[crop4] >= 0.5
-save_sdf([ink_f[crop4], hl_f[crop4], sdf(cut4, SDF_RANGE[2])], "/Users/gianneangely/Documents/ClawFriends/game/assets/kyoko_hair_cut.png")
-# pad: how far past the cut's edge the meshes surely reach (texels) - the outline may spill out that far
-hex_ = lambda c: int("".join(f"{int(round(v * 255)):02x}" for v in c), 16)
-json.dump({"box": CUT_BOX, "W": Wpx, "H": Hpx, "sdf": SDF_RANGE, "pad": 2.5 * SC_H,
-           "base": hex_(HAIR_RGB), "hl": hex_(HL_RGB), "ink": hex_(INK_RGB)},
-          open("/Users/gianneangely/Documents/ClawFriends/game/assets/kyoko_hair.json", "w"))
-# the cut-out parts' meshes reach 3 px past the drawn outline (the alpha decides the edge, not the mesh)
-BRAID_ZONE = ndimage.binary_dilation(braid_solid, iterations=4)
-TOP_MESH = smooth_mask(ndimage.binary_dilation(HAIR_CUT & ~(BRAID_ZONE & (YY >= 332)), iterations=3))
-BRAID_MESH = smooth_mask(ndimage.binary_dilation(HAIR_CUT & BRAID_ZONE & (YY >= 326), iterations=3)) & (YY >= 326)
+src_ = np.where((hairish | line_aa)[..., None], hair_draw, HAIR_RGB)
+use_ = hair_region | (ndimage.binary_dilation(hair_region, iterations=4) & line_aa)
+htex = np.where(use_[..., None], src_, HAIR_RGB)
+Image.fromarray((np.clip(htex, 0, 1) * 255).astype(np.uint8)).resize((Wpx * 2, Hpx * 2), Image.LANCZOS).save("/Users/gianneangely/Documents/ClawFriends/game/assets/kyoko_hair.png", optimize=True)
 
 # ------------------------------------------------------------------ mesh builders
 def mask_mesh(mask, grid=4, sigma=1.2, min_area=40):
@@ -499,7 +455,7 @@ def hair_top_base(x, y):
     w = smoothstep(100, 130, np.abs(np.asarray(x, float) - HEAD["cx"])) * smoothstep(318, 372, np.asarray(y, float))
     return b0 + (np.minimum(b0, shell_front_y(x, y) - 0.035) - b0) * w
 braid_m = load("braid")
-pillow("HairTop", "HairTex", TOP_MESH, hair_top_base, 0.4, 0.4, one("head"), grid=4, uv=True)
+pillow("HairTop", "HairTex", load("hair_top") | (braid_m & (YY < 332)), hair_top_base, 0.4, 0.4, one("head"), grid=4, uv=True)
 # hair over the crown, under the hood: looking into the hood above the bangs shows hair, not the hood lining
 cv, cf = ellipsoid(PX(HEAD["cx"]), PZ(HEAD["cy"]), HEAD["yc"], HEAD["rx"] * K + 0.02, HEAD["rz"] * K + 0.02, HEAD["ry"] + 0.02)
 # only the top and the back of the head: its front (rows down to 215) sat in front of the forehead and filled the gaps
@@ -511,12 +467,8 @@ add("HairCrown", "HairTex", cv, cf[keep_f], {"head": np.ones(len(cv))}, uv=front
 # braid: the drawn braid (plait, tie, tuft) as a relief painted with the drawing, along a depth curve from inside the
 # side lock (its top end hides under the lock) forward over the capelet
 BDEP = ([326, 340, 362, 393, 420, 446], [0.0, -0.12, -0.27, -0.41, -0.5, -0.54])
-def braid_base(x, y):
-    # where it hangs over the capelet it lies on it, never behind (from the high game camera the capelet, draping
-    # forward, hid the middle of the braid)
-    b = np.interp(y, *BDEP); w = smoothstep(372, 392, np.asarray(y, float))
-    return b + (np.minimum(b, shell_front_y(x, y) - 0.07) - b) * w
-pillow("Braid", "HairTex", BRAID_MESH, braid_base, 0.8, 0.6,
+braid_solid = ndimage.binary_closing(braid_m, structure=np.hypot(*np.mgrid[-6:7, -6:7]) <= 6) | braid_m   # one piece: the dark hair tie isn't hair-coloured and split it in two (the cloak showed through the gap)
+pillow("Braid", "HairTex", braid_solid & (YY >= 326), lambda x, y: np.interp(y, *BDEP), 0.8, 0.6,
        lerp_bones([(330, "head"), (390, "braid1"), (440, "braid2")]), grid=2, min_area=20, uv=True)
 
 # ------------------------------------------------------------------ ring, button, folds
@@ -647,7 +599,6 @@ allparts |= (XX > 330) & (XX < 470) & (YY > 378) & (YY < 476)
 keep = fg & ~(grey_px & ~allparts)        # grey outside the opening is behind the hood anyway
 keep = ndimage.binary_opening(keep, structure=np.ones((1, 7), bool)) | (keep & ~ndimage.binary_dilation(grey_px, iterations=4))   # no thin strands left on the lining
 keep = ndimage.binary_closing(ndimage.binary_opening(keep, iterations=1), iterations=1)   # clean edges
-keep = smooth_mask(keep, fill=False)
 S_U = 150.0
 NU = int(np.pi * S_U) + 1
 uu = np.linspace(-np.pi / 2, np.pi / 2, NU)
