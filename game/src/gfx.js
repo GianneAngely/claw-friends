@@ -95,7 +95,10 @@ const OUTLINE_VERT = `
       vec3 n = normalize(normalMatrix * normal);
       vec2 d = (projectionMatrix * vec4(n, 0.0)).xy * res;
       float l = length(d);
-      if (l > 1e-6) clip.xy += (d / l) / res * 2.0 * px * clip.w;
+      // push only near the silhouette: where the surface faces the camera its normal has no stable screen direction,
+      // and the hull folded over into dark specks and scratches on the surface
+      float edge = smoothstep(.15, .4, length(n.xy));
+      if (l > 1e-6) clip.xy += (d / l) / res * 2.0 * px * clip.w * edge;
       gl_Position = clip;
     }`;
 const OUTLINE_FRAG = `
@@ -135,7 +138,10 @@ const OUTLINE_SKIN_VERT = `
       vec3 n = normalize(normalMatrix * objectNormal);
       vec2 d = (projectionMatrix * vec4(n, 0.0)).xy * res;
       float l = length(d);
-      if (l > 1e-6) clip.xy += (d / l) / res * 2.0 * px * clip.w;
+      // push only near the silhouette: where the surface faces the camera its normal has no stable screen direction,
+      // and the hull folded over into dark specks and scratches on the surface
+      float edge = smoothstep(.15, .4, length(n.xy));
+      if (l > 1e-6) clip.xy += (d / l) / res * 2.0 * px * clip.w * edge;
       gl_Position = clip;
     }`;
 const skinLineMats = new Map();

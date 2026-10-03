@@ -12,7 +12,7 @@ import faceHappy from "../assets/kyoko_face_happy.png";
 import faceSad from "../assets/kyoko_face_sad.png";
 import faceWow from "../assets/kyoko_face_wow.png";
 import hairPng from "../assets/kyoko_hair.png";
-import { toonFlat, toonTex, outlineSkinned } from "./gfx.js";
+import { toonFlat, toonTex, flat, outlineSkinned } from "./gfx.js";
 
 export const BASE = { hair: 0xA32858, hoodColor: 0xC7C7D0 };
 // wardrobe: the tee and the shorts come in the six colour sets W1..W6 (mix and match)
@@ -126,10 +126,16 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       continue;
     }
     if (name === "HairTex") {   // Kyoko's hair carries the drawing; the staff (other hair colours) get the plain colour
-      m.material = ch.hair === BASE.hair ? toonTex(0xFFFFFF, HAIR_TEX) : toonFlat(ch.hair, .8);
-      outlineSkinned(m, ch.hair, INK);
+      // her hair's lines are drawn in its texture, outline included: a 3D outline on top doubled them and showed
+      // through as scratches; plain hair needs it
+      if (ch.hair === BASE.hair) {
+        m.material = toonTex(0xFFFFFF, HAIR_TEX);
+        if (m.name.startsWith("HairLong")) outlineSkinned(m, ch.hair, INK);   // (the long hair is seen from above too)
+      } else { m.material = toonFlat(ch.hair, .8); outlineSkinned(m, ch.hair, INK); }
       continue;
     }
+    if (name === "HoodRim") { m.material = flat(ch.hoodColor); continue; }   // the cloth's edge: one with the hood
+    if (m.name.startsWith("Head")) { m.material = toonFlat(SKIN, .3); continue; }   // (always covered: no outline)
     const [color, shade] = pal[name] || [0xFF00FF, .8];
     m.material = toonFlat(color, shade);
     outlineSkinned(m, color, INK);
