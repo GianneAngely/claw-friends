@@ -1,6 +1,6 @@
 // Claw machine model (duck / shiba / seal / alpaca variants), local origin = floor centre, front = +z.
 import * as THREE from "three";
-import { C, INKS, toon, flat, mesh, blob, dot, rbox, tube, stick, canvasTex, label, plane, heartPath, bake, glassMat, shineMat, acrylMat } from "./gfx.js";
+import { C, INKS, toon, flat, mesh, blob, dot, rbox, tube, stick, canvasTex, label, plane, heartPath, bake, dithered, glassMat, shineMat, acrylMat } from "./gfx.js";
 
 export const W = 5, D = 4.2, FLOOR = 2.4, GTOP = 6.4, IX = 2.28, IZ = 1.9;
 export const CHUTE = { x0: -IX, x1: -1.05, z0: .65, z1: IZ, h: 1.5 };
@@ -75,6 +75,44 @@ const TOPPERS = {
 };
 
 
+// The machines' topper heads (machines already placed), baked into one group in which each head can dissolve on its
+// own. The heads stand at the camera's height: the camera went into them, or right up against one, walking by the
+// machines. A head fades out when the camera is at it or it's across the line of sight to the kid - all the way
+// (half-faded heads held still showed as a dotted ghost) - quickly, and comes back only a bit past where it went
+const T_AX = new THREE.Vector3(HA + .3, HB + .8, HC + .3);   // round a head, ears and tufts included
+export function bakeToppers(machines) {
+  const all = new THREE.Group(), inv = [];
+  machines.forEach((m, i) => {
+    m.topper.updateMatrixWorld(true);
+    inv.push(m.topper.matrixWorld.clone().invert());
+    m.topper.traverse(o => { o.userData.topper = i; });
+    all.attach(m.topper);
+  });
+  const fade = { value: new Float32Array(machines.length).fill(1) }, gone = machines.map(() => false);
+  const group = bake(all, o => o.userData.topper);
+  group.traverse(o => { if (o.isMesh) o.material = dithered(o.material, fade); });
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), p = new THREE.Vector3();
+  return {
+    group,
+    // cam / target: world positions; on: fading allowed (walking), else the heads come back
+    update(cam, target, dt, on) {
+      for (let i = 0; i < inv.length; i++) {
+        const m = gone[i] ? 1.12 : 1;                      // (hysteresis: no flicker on the edge)
+        let out = false;
+        if (on) {
+          a.copy(cam).applyMatrix4(inv[i]).divide(T_AX); b.copy(target).applyMatrix4(inv[i]).divide(T_AX);
+          out = a.length() < 2.3 * m;
+          for (let k = 1; k < 12 && !out; k++) {
+            p.lerpVectors(a, b, k / 12);
+            out = p.y > -.2 && p.length() < 1.1 * m;
+          }
+        }
+        gone[i] = out;
+        fade.value[i] += ((out ? 0 : 1) - fade.value[i]) * Math.min(1, dt * (out ? 12 : 5));
+      }
+    },
+  };
+}
 export function makeMachine(cfg) {
   const st = new THREE.Group();            // static parts, baked later
   const add = (...m) => st.add(...m);
@@ -136,11 +174,11 @@ export function makeMachine(cfg) {
   // sign band + topper head
   add(rbox(W + .2, .62, D + .2, .2, cfg.sign, 0, GTOP + .31, 0));
   add(plane(label(cfg.name.toUpperCase(), 1024, 170, 116), 4.3, .72, 0, GTOP + .31, (D + .2) / 2 + .01));
-  const head = TOPPERS[cfg.topper](); head.position.y = GTOP + .62; add(head);
+  const topper = TOPPERS[cfg.topper](); topper.position.y = GTOP + .62;   // baked with the others (bakeToppers)
 
   const root = new THREE.Group();
   const body = bake(st);
-  root.add(body);
+  root.add(body, topper);
 
   // glass (transparent, drawn last)
   const gF = new THREE.Mesh(new THREE.PlaneGeometry(W - .4, GTOP - FLOOR), glassMat); gF.position.set(0, (FLOOR + GTOP) / 2, D / 2 - .1);
@@ -163,7 +201,7 @@ export function makeMachine(cfg) {
   const parts = [stickPivot, grabBtn, cross, trolley, cable];
 
   const api = {
-    root, body, parts, cfg, stickPivot, grabBtn,
+    root, body, topper, parts, cfg, stickPivot, grabBtn,
     // trolley over (tx, tz); cable runs from the trolley down to the swinging claw head (local coords)
     setRig(tx, tz, hx, hy, hz) {
       cross.position.z = tz;

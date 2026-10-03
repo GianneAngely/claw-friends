@@ -7,7 +7,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { outlineU, bake, ANIME } from "./gfx.js";
-import { makeMachine, MACHINE_BY_ID, IX, IZ } from "./machine.js";
+import { makeMachine, bakeToppers, MACHINE_BY_ID, IX, IZ } from "./machine.js";
 import { makePlush, PLUSH, PLUSH_BY_KEY, SPECIES } from "./plush.js";
 import { buildRoom, PLACES, START, SHELF, CASHIER, SWAP, CORRAL, cartModel } from "./room.js";
 import { ClawGame } from "./claw.js";
@@ -101,6 +101,7 @@ async function main() {
     return g;
   });
   scene.add(bake(statics));
+  const toppers = bakeToppers(games.map(g => g.m)); scene.add(toppers.group);
   for (let i = 0; i < 320; i++) world.step();
   const rows = SPECIES.map(s => games.filter(g => g.species === s.id)), rowBake = [];
   const rowOf = g => SPECIES.findIndex(s => s.id === g.species);
@@ -661,6 +662,7 @@ async function main() {
     const f = controls.target;
     sun.position.set(f.x + 13, 24, f.z + 16); sun.target.position.set(f.x, 0, f.z);
     if (Q.get("cam") && frames < 3) { const c = Q.get("cam").split(",").map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); controls.update(); }
+    toppers.update(camera.position, controls.target, dt, mode === "walk");
     if (!TEST || frames % 10 === 0 || window.TEST_DONE || window.FROZEN) composer.render();
     if (++frames >= 5 && !tween && (TEST !== "machine" || frames > 40) && (TEST !== "walk" || window.ARRIVED) && (TEST !== "wardrobe" || frames > 30)) window.READY = true;
     if (TEST === "claw" && testRounds.length >= ROUNDS && !window.TEST_DONE) {
