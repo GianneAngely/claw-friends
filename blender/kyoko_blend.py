@@ -16,7 +16,7 @@ for o in list(bpy.data.objects): bpy.data.objects.remove(o, do_unlink=True)
 scene = bpy.context.scene; col = scene.collection
 
 COLORS = {  # reference palette (sRGB); the game recolours by material name
-    "Hood": (199, 199, 208), "HoodInner": (136, 136, 148), "EarInner": (224, 226, 232), "Nose": (56, 55, 59),
+    "Hood": (199, 199, 208), "HoodInner": (136, 136, 148), "HoodRim": (199, 199, 208), "EarInner": (224, 226, 232), "Nose": (56, 55, 59),
     "Skin": (248, 229, 214), "Face": (248, 229, 214), "Hair": (163, 40, 88), "HairTex": (163, 40, 88), "Top": (63, 69, 117),
     "Collar": (199, 199, 208), "Button": (197, 197, 204), "Shorts": (199, 198, 208), "Glove": (248, 229, 214),
 }
