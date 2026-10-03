@@ -79,6 +79,39 @@ export function toon(c, opts = {}) {
   if (!cache.has(k)) cache.set(k, animeMat(c, opts));
   return cache.get(k);
 }
+// a copy of a material (or an outline's) whose surface dissolves in an ordered dither by its vertices' aId entry in
+// fade.value (1 = solid, 0 = gone): for things baked together that fade one by one
+const DITHER_FRAG = n => `uniform float uFade[${n}];
+varying float vId;
+float bayer4(vec2 p) {
+  const float M[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
+  ivec2 i = ivec2(mod(p, 4.0));
+  return (M[i.x + i.y * 4] + .5) / 16.0;
+}
+void main() {
+  if (uFade[int(vId + .5)] < bayer4(gl_FragCoord.xy)) discard;`;
+const DITHER_VERT = s => "attribute float aId;\nvarying float vId;\n" + s.replace("void main() {", "void main() {\n  vId = aId;");
+export function dithered(mat, fade) {
+  const k = "d" + mat.uuid;
+  if (cache.has(k)) return cache.get(k);
+  const m = mat.clone(), n = fade.value.length;
+  if (mat.isShaderMaterial) {
+    m.uniforms = { ...mat.uniforms, uFade: fade };   // (clone() copied px/res: they must stay the shared ones)
+    m.vertexShader = DITHER_VERT(mat.vertexShader);
+    m.fragmentShader = mat.fragmentShader.replace("void main() {", DITHER_FRAG(n));
+  } else {
+    const key = mat.customProgramCacheKey();
+    m.onBeforeCompile = (sh, r) => {
+      mat.onBeforeCompile(sh, r);
+      sh.uniforms.uFade = fade;
+      sh.vertexShader = DITHER_VERT(sh.vertexShader);
+      sh.fragmentShader = sh.fragmentShader.replace("void main() {", DITHER_FRAG(n));
+    };
+    m.customProgramCacheKey = () => key + "_dither" + n;
+  }
+  cache.set(k, m);
+  return m;
+}
 export function flat(c) {
   const k = "f" + c;
   if (!cache.has(k)) cache.set(k, new THREE.MeshBasicMaterial({ color: c }));
@@ -274,7 +307,8 @@ export function sparkle(x, y, z, s) {
 }
 
 // Merge every opaque mesh under `root` by material (keeps outlines), for fewer draw calls.
-export function bake(root) {
+// idOf(mesh): an id per mesh, kept per vertex as attribute aId (for dithered())
+export function bake(root, idOf) {
   root.updateMatrixWorld(true);
   const inv = root.matrixWorld.clone().invert();
   const buckets = new Map(), keep = [];
@@ -286,6 +320,7 @@ export function bake(root) {
     let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     for (const name of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(name)) g.deleteAttribute(name);
     if (!g.attributes.uv) g.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    if (idOf) g.setAttribute("aId", new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(idOf(o)), 1));
     g.clearGroups();
     g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
     buckets.get(key).geos.push(g);
