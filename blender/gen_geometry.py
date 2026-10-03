@@ -94,11 +94,32 @@ FLAP_XL = (np.array([336, 342, 348, 354, 360, 366, 372, 378, 384, 390, 396, 402,
 FLAP_L = (row_y >= 330) & (row_y <= 486)
 xL_now = c_px - ratioL * a_px
 ratioL = np.where(FLAP_L, (c_px - np.interp(row_y, np.r_[330, FLAP_XL[0], 486], np.r_[np.interp(330, row_y, xL_now), FLAP_XL[1], np.interp(486, row_y, xL_now)])) / np.maximum(a_px, 1), ratioL)
-thL, thR = np.arcsin(np.clip(ratioL, 0, 0.97)), np.arcsin(np.clip(ratioR, 0, 0.97))
-# below the hips the front edges turn out to the sides (the drawing shows lining round the legs right down to the
-# bottom): no lip of cloth crosses in front of the legs, the cloth that is left curls under behind them
-w_bot = smoothstep(652, 708, row_y)   # (a long turn: a short one left a pointed corner at the bottom of each front edge)
-thL, thR = thL + (np.pi / 2 - thL) * w_bot, thR + (np.pi / 2 - thR) * w_bot
+# below the capelet the cloak's front edges are smooth curves: a quadratic fitted to the drawing's edges (measured row
+# by row they wobbled by several pixels, which the outline turned into a shaky line). Each edge runs on down until the
+# narrowing egg meets it, so the front stays open round the legs right to the bottom like the drawing; where it leaves
+# the capelet's lower edge the corner is rounded
+def fitted_edge(key):
+    ys_m = np.array([y for y in range(490, 692, 2) if prof.get(y) and prof[y][key] is not None], float)
+    xs_m = np.array([prof[int(y)][key] for y in ys_m], float)
+    keep = np.ones(len(ys_m), bool)
+    for _ in range(3):                                   # robust: drop the rows where the hand or a strand broke the edge
+        cf = np.polyfit(ys_m[keep], xs_m[keep], 2)
+        keep = np.abs(np.polyval(cf, ys_m) - xs_m) < 6
+    return cf
+LOW = row_y >= 480
+for key, sgn in (("iR", 1), ("iL", -1)):
+    x_fit = np.polyval(fitted_edge(key), row_y) + sgn * 5               # (+5: the rim's thickness must not hide the hair)
+    x_flap = np.interp(480, FLAP_X[0], FLAP_X[1]) if sgn > 0 else np.interp(480, FLAP_XL[0], FLAP_XL[1])
+    x_edge = x_fit + (x_flap - np.polyval(fitted_edge(key), 480.0) - sgn * 5) * (1 - smoothstep(480, 500, row_y))
+    # at the bottom the edge eases out onto the egg's side, meeting it tangentially (no corner, no step)
+    x_sil = c_px + sgn * a_px * 0.999
+    x_edge = x_edge + (x_sil - x_edge) * np.clip(smoothstep(676, 712, row_y) * (sgn * (x_sil - x_edge) > 0), 0, 1)
+    r_new = np.clip(sgn * (x_edge - c_px) / np.maximum(a_px, 1), 0, 0.999)
+    if sgn > 0: ratioR = np.where(LOW, r_new, ratioR)
+    else: ratioL = np.where(LOW, r_new, ratioL)
+thL = np.arcsin(np.where(LOW, np.clip(ratioL, 0, 0.999), np.clip(ratioL, 0, 0.97)))
+thR = np.arcsin(np.where(LOW, np.clip(ratioR, 0, 0.999), np.clip(ratioR, 0, 0.97)))
+
 DEPTH = 0.8   # egg depth / width
 NS, T = 88, 0.036
 # ring angles are the same on every row (no twisting between rows with different openings, e.g. along the capelet's
@@ -158,7 +179,10 @@ for k in range(NS):
     hem += [[o1, NV + o2, o2], [o1, NV + o1, NV + o2]]
 verts = np.concatenate([verts_o, verts_i])
 faces = np.array(fo + [[a + NV, b + NV, c + NV] for a, b, c in fi] + rim + hem)
-shell_fmat = np.r_[np.zeros(len(fo), int), np.ones(len(fi), int), np.zeros(len(rim) + len(hem), int)]
+# the cloth's thickness along the front opening has its own flat material (the hood colour, unshaded, no outline), so
+# it merges with the hood and the opening edge gets one line (lit and outlined it showed as a pale band with a line on
+# each side; dark it made a thick black band from above)
+shell_fmat = np.r_[np.zeros(len(fo), int), np.ones(len(fi), int), np.full(len(rim) + len(hem), 2)]
 # weld coincident vertices here (ring seams, the top pole), so the bone weights below stay on the right vertices
 # (welding in Blender re-numbered the vertices after the weights were made: the lining's top got the hem's cape
 # weights and burst through the hood when walking)
@@ -178,7 +202,7 @@ back = np.clip((np.abs(ang) - np.pi / 2) / (np.pi / 2), 0, 1)
 w_chest = (1 - w_head) - w_low
 wts = {"head": w_head, "chest": w_chest,
        "cape_B": w_low * back, "cape_L": w_low * (1 - back) * (ang > 0), "cape_R": w_low * (1 - back) * (ang <= 0)}
-add("Shell", ["Hood", "HoodInner"], verts, faces, wts)
+add("Shell", ["Hood", "HoodInner", "HoodRim"], verts, faces, wts)
 PARTS[-1]["face_mat"] = shell_fmat
 
 def shell_front_y(xpx, ypx):
@@ -248,12 +272,19 @@ hair_region = np.zeros((Hpx, Wpx), bool)
 for nm in ("hair_top", "braid", "hair_left", "hair_right", "hair_back"):
     hair_region |= load(nm)
 hair_region = ndimage.binary_dilation(hair_region, iterations=1)
-w_h = ndimage.gaussian_filter(hair_region.astype(np.float32), 1.0)[..., None]
 # even colour: the drawn shadow tones (a darker band under the hood, darker inner strands) read as patches in 3D, so
-# every saturated mid/dark tone becomes the base tone; the strand lines (dark, less saturated) and the highlights stay
-hv_ = rgbf.max(-1); hs_ = np.where(hv_ > 0, (hv_ - rgbf.min(-1)) / np.maximum(hv_, 1e-6), 0)
-hair_draw = np.where(((hs_ > 0.55) & (hv_ > 0.34))[..., None], HAIR_RGB, rgbf)
-htex = hair_draw * w_h + HAIR_RGB * (1 - w_h)
+# they become the base tone. The drawn lines stay whole, anti-aliased edges included (taking those for shadow tone
+# had left the lines thin and broken)
+hh_, hs_, hv_ = hsv(rgbf)
+line_aa = ndimage.binary_dilation(hv_ < 0.3, iterations=1)
+hair_draw = np.where(((hs_ > 0.55) & (hv_ > 0.34) & ~line_aa)[..., None], HAIR_RGB, rgbf)
+# only hair colours and lines come from the drawing (skin or grey caught at the mask's edge became the base tone), and
+# the drawn outline just outside the masks is kept too: the mesh edges sit on it, so the drawn line meets the 3D
+# outline in one bold line (the texture used to fade to the base tone there, which drew a second, thin line)
+hairish = ((hh_ >= 318) | (hh_ <= 10)) & (hs_ >= 0.3)
+src_ = np.where((hairish | line_aa)[..., None], hair_draw, HAIR_RGB)
+use_ = hair_region | (ndimage.binary_dilation(hair_region, iterations=4) & line_aa)
+htex = np.where(use_[..., None], src_, HAIR_RGB)
 Image.fromarray((np.clip(htex, 0, 1) * 255).astype(np.uint8)).resize((Wpx * 2, Hpx * 2), Image.LANCZOS).save("/Users/gianneangely/Documents/ClawFriends/game/assets/kyoko_hair.png", optimize=True)
 
 # ------------------------------------------------------------------ mesh builders
@@ -436,7 +467,8 @@ add("HairCrown", "HairTex", cv, cf[keep_f], {"head": np.ones(len(cv))}, uv=front
 # braid: the drawn braid (plait, tie, tuft) as a relief painted with the drawing, along a depth curve from inside the
 # side lock (its top end hides under the lock) forward over the capelet
 BDEP = ([326, 340, 362, 393, 420, 446], [0.0, -0.12, -0.27, -0.41, -0.5, -0.54])
-pillow("Braid", "HairTex", braid_m & (YY >= 326), lambda x, y: np.interp(y, *BDEP), 0.8, 0.6,
+braid_solid = ndimage.binary_closing(braid_m, structure=np.hypot(*np.mgrid[-6:7, -6:7]) <= 6) | braid_m   # one piece: the dark hair tie isn't hair-coloured and split it in two (the cloak showed through the gap)
+pillow("Braid", "HairTex", braid_solid & (YY >= 326), lambda x, y: np.interp(y, *BDEP), 0.8, 0.6,
        lerp_bones([(330, "head"), (390, "braid1"), (440, "braid2")]), grid=2, min_area=20, uv=True)
 
 # ------------------------------------------------------------------ ring, button, folds
@@ -536,8 +568,11 @@ hw_head = HEAD["rx"] * np.sqrt(np.clip(1 - ((hy - HEAD["cy"]) / HEAD["rz"]) ** 2
 hd_head = HEAD["ry"] * np.sqrt(np.clip(1 - ((hy - HEAD["cy"]) / HEAD["rz"]) ** 2, 0, 1))
 aL = np.maximum(outer_edge(-1), hw_head + 14 + (CX - HEAD["cx"]))
 aR = np.maximum(outer_edge(1), hw_head + 14 - (CX - HEAD["cx"]))
-aL = np.maximum(aL, CX - np.interp(hy, row_y, xL_now) + 6)     # the hood edges before the capelet panels: the hair
-aR = np.maximum(aR, np.interp(hy, row_y, xR_now) - CX + 6)     # behind the panels still fills the corners
+# below the jaw the hair behind reaches the hood's edges (no lining strip between them); beside the face it stays
+# inside the drawn side locks (wider, it stuck out past them as a ragged second edge)
+w_rim = smoothstep(360, 380, hy)
+aL = np.maximum(aL, (CX - np.interp(hy, row_y, xL_now) + 6) * w_rim)
+aR = np.maximum(aR, (np.interp(hy, row_y, xR_now) - CX + 6) * w_rim)
 HYC = HEAD["yc"]
 bb = np.maximum(np.where(hy < HEAD["cy"], hd_head, HEAD["ry"]) + 0.06, 0.3)
 # keep the sheet (with its thickness) inside the cape's inner surface
@@ -555,7 +590,7 @@ white = (fs < 0.06) & (fvv > 0.97)
 frame = np.zeros((Hpx, Wpx), bool); frame[:5] = frame[-5:] = True; frame[:, :5] = frame[:, -5:] = True
 lab_bg, _ = ndimage.label(white | frame)
 fg = lab_bg != lab_bg[2, 2]
-grey_px = (fs < 0.14) & (fvv >= 0.3) & (fvv < 0.95) & fg
+grey_px = (fs < 0.14) & (fvv >= 0.45) & (fvv < 0.95) & fg   # (not the dark anti-aliasing round the lines)
 allparts = face_region | collar_m          # grey things that are not lining
 for nm in ("glove_r", "glove_l", "button", "shorts", "ear_in_r", "ear_in_l"):
     allparts |= load(nm)
@@ -563,6 +598,7 @@ allparts = ndimage.binary_dilation(allparts, iterations=2)
 allparts |= (XX > 330) & (XX < 470) & (YY > 378) & (YY < 476)
 keep = fg & ~(grey_px & ~allparts)        # grey outside the opening is behind the hood anyway
 keep = ndimage.binary_opening(keep, structure=np.ones((1, 7), bool)) | (keep & ~ndimage.binary_dilation(grey_px, iterations=4))   # no thin strands left on the lining
+keep = ndimage.binary_closing(ndimage.binary_opening(keep, iterations=1), iterations=1)   # clean edges
 S_U = 150.0
 NU = int(np.pi * S_U) + 1
 uu = np.linspace(-np.pi / 2, np.pi / 2, NU)
