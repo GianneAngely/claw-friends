@@ -7,7 +7,7 @@ let icons = {};
 export function setIcons(m) { icons = m; }
 const img = (key, miss) => `<img src="${icons[key] || ""}" class="${miss ? "miss" : ""}" alt="">`;
 
-export const input = { stick: { x: 0, y: 0 }, walk: { x: 0, y: 0 }, grab: false, action: false, back: false, wardrobe: false, hideCart: false, keys: false };
+export const input = { stick: { x: 0, y: 0 }, walk: { x: 0, y: 0 }, grab: false, action: false, back: false, wardrobe: false, hideCart: false, keys: false, view: false };
 const keys = new Set();
 let dragStick = null, dragJoy = null;
 
@@ -23,6 +23,7 @@ export function init() {
     if (e.code === "Escape") input.back = true;
     if (e.code === "KeyC") input.wardrobe = true;
     if (e.code === "KeyH") input.hideCart = true;
+    if (e.code === "KeyV") input.view = true;
     if (e.code.startsWith("Arrow")) e.preventDefault();
   });
   addEventListener("keyup", e => keys.delete(e.code));
@@ -48,6 +49,7 @@ export function init() {
   $("wardBtn").addEventListener("click", e => { input.wardrobe = true; e.currentTarget.blur(); });
   $("cartPill").addEventListener("click", () => { input.hideCart = true; });
   $("keysBtn").addEventListener("click", e => { input.keys = true; e.currentTarget.blur(); });
+  $("viewBtn").addEventListener("click", e => { input.view = true; e.currentTarget.blur(); });
 
   // walking joystick (touch screens only)
   const joy = $("joy"), JR = 44;
@@ -68,6 +70,8 @@ export function init() {
   $("wardBtn").innerHTML = ICON.tee;
   ICON.kbd = `<svg viewBox="-12 -12 24 24"><rect x="-10.5" y="-6.5" width="21" height="13" rx="3" fill="#C9B6F2" stroke="${window.INK}" stroke-width="2.2"/>${[-6, -2, 2, 6].map(x => `<rect x="${x - 1.3}" y="-3.6" width="2.6" height="2.4" rx=".6" fill="#fff"/>`).join("")}<rect x="-5" y="1.6" width="10" height="2.4" rx=".8" fill="#fff"/></svg>`;
   $("keysBtn").innerHTML = ICON.kbd;
+  ICON.eye = `<svg viewBox="-12 -12 24 24"><path d="M-10.5,0 C-6,-7.5 6,-7.5 10.5,0 C6,7.5 -6,7.5 -10.5,0 Z" fill="#fff" stroke="${window.INK}" stroke-width="2.2" stroke-linejoin="round"/><circle r="3.8" fill="#8ED8FF" stroke="${window.INK}" stroke-width="2"/><circle r="1.5" fill="${window.INK}"/></svg>`;
+  $("viewBtn").innerHTML = ICON.eye;
   ICON.note = `<svg viewBox="-12 -12 24 24"><path d="M-2,6 L-2,-7 L8,-9 L8,4" fill="none" stroke="${window.INK}" stroke-width="2.4" stroke-linejoin="round"/><ellipse cx="-4.6" cy="6.4" rx="3.4" ry="2.6" fill="#FFA8D4" stroke="${window.INK}" stroke-width="2"/><ellipse cx="5.4" cy="4.4" rx="3.4" ry="2.6" fill="#FFA8D4" stroke="${window.INK}" stroke-width="2"/></svg>`;
   ICON.star = `<svg viewBox="-12 -12 24 24"><path d="M0,-10 L2.9,-3.6 L9.8,-3 L4.6,1.6 L6.1,8.6 L0,5 L-6.1,8.6 L-4.6,1.6 L-9.8,-3 L-2.9,-3.6 Z" fill="#FF74B8" stroke="${window.INK}" stroke-width="2" stroke-linejoin="round"/></svg>`;
   ICON.cart = `<svg viewBox="-12 -12 24 24"><path d="M-10,-7 L-7,-7 L-4,5 L7,5 L9,-3 L-5.5,-3" fill="#FFA8D4" stroke="${window.INK}" stroke-width="2.2" stroke-linejoin="round"/><circle cx="-3" cy="8.4" r="1.8" fill="${window.INK}"/><circle cx="6" cy="8.4" r="1.8" fill="${window.INK}"/></svg>`;
@@ -122,8 +126,8 @@ function drawStick(x, y) {
 }
 
 export function consume() {
-  const r = { grab: input.grab, action: input.action, back: input.back, wardrobe: input.wardrobe, hideCart: input.hideCart, keys: input.keys };
-  input.grab = input.action = input.back = input.wardrobe = input.hideCart = input.keys = false;
+  const r = { grab: input.grab, action: input.action, back: input.back, wardrobe: input.wardrobe, hideCart: input.hideCart, keys: input.keys, view: input.view };
+  input.grab = input.action = input.back = input.wardrobe = input.hideCart = input.keys = input.view = false;
   return r;
 }
 
@@ -131,6 +135,7 @@ export function setMode(m) {
   const walk = m === "walk", machine = m === "machine", ward = m === "wardrobe";
   $("logo").classList.toggle("hide", !walk);
   $("wardBtn").classList.toggle("hide", !walk);
+  $("viewBtn").classList.toggle("hide", !walk);
   $("keysBtn").classList.toggle("hide", ward);
   $("goals").classList.toggle("hide", !walk || tutOn);
   $("tut").classList.toggle("hide", !tutOn || ward);
@@ -261,10 +266,10 @@ export function showControls(touch, onReplay) {
   const K = s => s.split(" ").map(k => `<kbd>${k}</kbd>`).join("");
   const rows = touch ? [
     ["Joystick", "Walk"], ["Drag the screen", "Look around"], ["Pink button", "Use (carts, machines, cashier)"],
-    ["Stick + <b>GRAB</b>", "Move the claw, grab"], ["Cart counter", "Put the cart away / bring it back"], ["Shirt button", "Wardrobe"],
+    ["Stick + <b>GRAB</b>", "Move the claw, grab"], ["Cart counter", "Put the cart away / bring it back"], ["Shirt button", "Wardrobe"], ["Eye button", "Through Kyoko's eyes / back"],
   ] : [
     [K("W A S D"), "Walk · move the claw"], [`${K("← → ↑ ↓")} or drag`, "Look around"], [`${K("E")} ${K("Space")}`, "Use · grab"],
-    [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("Esc"), "Leave the machine"],
+    [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("V"), "Through Kyoko's eyes / back"], [K("Esc"), "Leave the machine"],
   ];
   openCard(`<h2>Controls</h2><div class="keylist">${rows.map(([k, d]) => `<div class="krow"><span>${k}</span><b>${d}</b></div>`).join("")}</div>
     <button class="replay" id="k-replay">Replay the tutorial</button><button class="ok">Close</button>`, true);
