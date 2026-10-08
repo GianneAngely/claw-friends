@@ -6,7 +6,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { outlineU, bake, ANIME } from "./gfx.js";
+import { outlineU, bake, ANIME, canvasTex } from "./gfx.js";
 import { makeMachine, bakeToppers, MACHINE_BY_ID, IX, IZ } from "./machine.js";
 import { makePlush, PLUSH, PLUSH_BY_KEY, SPECIES } from "./plush.js";
 import { buildRoom, PLACES, START, SHELF, CASHIER, SWAP, CORRAL, cartModel } from "./room.js";
@@ -16,6 +16,7 @@ import * as ui from "./ui.js";
 import * as store from "./save.js";
 import * as audio from "./sfx.js";
 import * as settings from "./settings.js";
+import * as progress from "./progress.js";
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.get("test");
@@ -101,6 +102,8 @@ async function main() {
   const world = new RAPIER.World({ x: 0, y: -40, z: 0 });
   world.integrationParameters.numSolverIterations = 8;
   const rnd = mulberry32(TEST ? 7 : (Date.now() & 0xffffff));
+  save.shiny = save.shiny || {}; save.sets = save.sets || {};
+  progress.ensureDay(save, rnd);
   const room = buildRoom(scene, RAPIER, world);
   const statics = new THREE.Group();
   const games = PLACES.map((p, i) => {
@@ -113,6 +116,22 @@ async function main() {
     return g;
   });
   scene.add(bake(statics));
+  // rows that aren't open yet carry a "locked" plate over the glass
+  for (const g of games) {
+    const need = progress.MACHINE_UNLOCK[g.species];
+    if (!need) continue;
+    const tex = canvasTex(512, 220, (c, w, h) => {
+      c.fillStyle = "rgba(74, 58, 94, .88)"; c.beginPath(); c.roundRect(8, 8, w - 16, h - 16, 40); c.fill();
+      c.lineWidth = 8; c.strokeStyle = "#fff"; c.stroke();
+      c.textAlign = "center"; c.fillStyle = "#FFD4E5"; c.font = "700 76px Fredoka"; c.fillText("LOCKED", w / 2, 108);
+      c.fillStyle = "#fff"; c.font = "600 36px Fredoka"; c.fillText(`win ${need} friends to open`, w / 2, 168);
+    });
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 1.42), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+    sign.position.set(0, 4.2, 2.25); g.m.root.add(sign); g.lockSign = sign;
+  }
+  const isLocked = g => !TEST && !progress.isOpen(save, g.species);
+  const paintLocks = () => { for (const g of games) if (g.lockSign) g.lockSign.visible = isLocked(g); };
+  paintLocks();
   const toppers = bakeToppers(games.map(g => g.m)); scene.add(toppers.group);
   for (let i = 0; i < 320; i++) world.step();
   const rows = SPECIES.map(s => games.filter(g => g.species === s.id)), rowBake = [];
@@ -303,14 +322,39 @@ async function main() {
       ]);
     } else {
       ui.setGoals([
-        { text: `Collect all friends (${PLUSH.filter(q => save.owned[q.key]).length}/24)`, done: PLUSH.every(q => save.owned[q.key]) },
-        { text: `Big friends (${SPECIES.filter(sp => save.big[sp.id]).length}/4)`, done: SPECIES.every(sp => save.big[sp.id]) },
-      ]);
+        ...save.reqs.map(r => ({ text: r.text + (r.n > 1 && r.kind !== "checkout" ? ` (${Math.min(r.have, r.n)}/${r.n})` : ""), done: r.have >= r.n })),
+        { text: `Collection ${PLUSH.filter(q => save.owned[q.key]).length}/24 · big ${SPECIES.filter(sp => save.big[sp.id]).length}/4`, done: PLUSH.every(q => save.owned[q.key]) },
+      ], `Day ${save.day} requests`);
     }
   }
   function goal(key) { if (!save.goals[key]) { save.goals[key] = true; persist(); refreshGoals(); ui.toast("Goal complete!"); audio.sfx.coin(); } }
   refreshGoals();
-  function addScore(n) { save.score += n; persist(); ui.setScore(save.score); ui.floatScore(`+${n}`); }
+  const WARD = { hood: HOODS, face: FACE_OPTS, height: HEIGHTS, hair: HAIRS, top: TOPS, bottom: BOTTOMS };
+  function addScore(n) {
+    const before = save.score;
+    save.score += n; persist(); ui.setScore(save.score); ui.floatScore(`+${n}`);
+    for (const t of progress.newlyUnlocked(before, save.score, WARD)) ui.banner(`Unlocked: ${t}!`);
+  }
+  // daily requests (once the starter goals are done)
+  const starterDone = () => { const g = save.goals; return !!(g.cart && g.win3 && g.swap && g.checkout); };
+  function req(ev, data) {
+    if (!starterDone() || TEST) return;
+    const done = progress.track(save, ev, data);
+    if (!done.length) return;
+    persist(); refreshGoals();
+    for (const r of done) ui.banner(`Request done: ${r.text} ✔`);
+    audio.sfx.coin();
+    if (progress.dayComplete(save)) setTimeout(finishDay, 1200);
+  }
+  function finishDay() {
+    if (ui.isModal()) return setTimeout(finishDay, 500);   // (after the win card is closed)
+    const day = save.day, rw = progress.dayReward(day);
+    save.coins += rw.coins; ui.setCoins(save.coins);
+    progress.nextDay(save, rnd); persist();
+    addScore(rw.stars); refreshGoals();
+    audio.sfx.win(); kid.setFace("happy", 2.4);
+    ui.showDayDone(day, rw, save.day, save.reqs);
+  }
 
   // a won friend flies from the prize door into the cart
   const flights = [];
@@ -347,6 +391,7 @@ async function main() {
     ui.setGrab("GRAB");
   }
   function enterMachine(g) {
+    if (isLocked(g)) { ui.toast(`Win ${progress.MACHINE_UNLOCK[g.species] - save.wins} more friends to open this one`); return; }
     if (!cart.attached) { ui.toast("Grab a cart first! They're by the door"); return; }
     if (save.coins < 1) { ui.toast("Out of coins! The cashier gives free coins every day"); return; }
     mode = "machine"; active = g; g.setLive(true); rebuildRow(rowOf(g));
@@ -383,13 +428,20 @@ async function main() {
   function onGame(g, ev, data) {
     if (ev === "win") {
       const key = data.key, p = PLUSH_BY_KEY[key], first = !save.seen[key];
+      const shiny = !TEST && rnd() < .06;                       // a rare sparkly copy: triple stars
       audio.sfx.win(); kid.setFace("happy", 2.6);
-      save.seen[key] = true; save.wins++; persist();
-      addScore(POINTS[p.tier] || 10);
+      const opened = progress.openSpecies(save).length;
+      save.seen[key] = true; save.wins++; if (shiny) save.shiny[key] = true; persist();
+      addScore((POINTS[p.tier] || 10) * (shiny ? 3 : 1));
+      req("win", { key });
+      if (!TEST && progress.openSpecies(save).length > opened) {
+        const sp = progress.openSpecies(save).at(-1);
+        paintLocks(); setTimeout(() => ui.showUnlock(`${sp.machine} is open!`, `A new row of machines full of ${sp.name}s. Go take a look!`), 1600);
+      }
       flyToCart(key, data.pos);
       if (save.wins >= 3) goal("win3");
       if (g === active) { ui.setSet(save.seen, g.species); roundWins++; }
-      if (first && !TEST) ui.showWin(p, 1); else ui.toast(`${p.name} · into the cart!`);
+      if ((first || shiny) && !TEST) ui.showWin(p, first ? 1 : 2, undefined, shiny); else ui.toast(`${p.name} · into the cart!`);
       window.WINS = (window.WINS || 0) + 1;
     }
     if (g !== active) return;
@@ -427,10 +479,10 @@ async function main() {
     const port = camera.aspect < 1;
     const tgt = p.clone().add(new THREE.Vector3(0, port ? .1 : 1.9, 0)).addScaledVector(camR, port ? 0 : 1.65);
     tweenTo(p.clone().addScaledVector(dir, port ? 10 : 8.5).add(new THREE.Vector3(0, 2.6, 0)).addScaledVector(camR, port ? 0 : 1.65), tgt);
-    ui.openWardrobe({ hood: HOODS, face: FACE_OPTS, height: HEIGHTS, hair: HAIRS, top: TOPS, bottom: BOTTOMS }, save.outfit, (kind, id) => {
+    ui.openWardrobe(WARD, save.outfit, (kind, id) => {
       save.outfit = { ...save.outfit, [kind]: id }; persist();
       rebuildKid(); if (kind !== "face") kid.setFace("happy", 1.1); audio.sfx.button();
-    });
+    }, (kind, id) => { const c = progress.starsFor(kind, id); return TEST || save.score >= c ? 0 : c; });
   }
   function closeWardrobe() {
     mode = "walk"; ui.setMode("walk"); setView();
@@ -475,7 +527,7 @@ async function main() {
     } else if (near.kind === "swap") {
       swapNpc.setFace("happy", 1.5);
       ui.showSwap(save.cart.filter(it => !it.big).length, doSwap);
-    } else if (near.kind === "shelf") ui.showCollection(owned);
+    } else if (near.kind === "shelf") ui.showCollection(owned, undefined, save.shiny);
   }
   // 5 small friends (commons first) become one big friend
   function doSwap(species) {
@@ -489,7 +541,7 @@ async function main() {
     save.cart.push({ big: species }); persist(); layoutCart();
     addScore(50); audio.sfx.swap(); kid.setFace("happy", 2.4); swapNpc.setFace("happy", 2);
     ui.toast(`A BIG ${SPECIES_BY_ID[species].name}! It's in your cart`);
-    goal("swap");
+    goal("swap"); req("swap");
   }
   // checkout: first copy of a friend goes to the shelf, extra copies are bought back for 1 coin, big friends go on pedestals
   function checkoutPlan() {
@@ -501,7 +553,7 @@ async function main() {
     return { fresh, dupes, bigs };
   }
   function checkout() {
-    const { fresh, dupes, bigs } = checkoutPlan();
+    const { fresh, dupes, bigs } = checkoutPlan(), count = save.cart.length;
     for (const it of save.cart) {
       if (it.big) save.big[it.big] = (save.big[it.big] || 0) + 1;
       else save.owned[it.key] = (save.owned[it.key] || 0) + 1;
@@ -510,14 +562,22 @@ async function main() {
     ui.setCoins(save.coins); layoutCart(); room.setShelf(save.owned); room.setBig(save.big);
     audio.sfx.register(); kid.setFace("happy", 2); cashierNpc.setFace("happy", 2);
     ui.toast(`Thank you! ${fresh} new on your shelf${dupes ? ` · +${dupes} coin${dupes === 1 ? "" : "s"}` : ""}${bigs ? ` · ${bigs} big` : ""}`);
-    goal("checkout"); refreshGoals();
+    goal("checkout"); refreshGoals(); req("checkout", { count });
+    // a whole species collected: a one-time reward
+    for (const sp of SPECIES) {
+      if (save.sets[sp.id] || !PLUSH.filter(q => q.species === sp.id).every(q => save.owned[q.key])) continue;
+      save.sets[sp.id] = true; save.coins += 10; ui.setCoins(save.coins); persist(); addScore(200);
+      if (!TEST) setTimeout(() => ui.showSetDone(sp, { coins: 10, stars: 200 }), 900);
+      break;
+    }
   }
   function updatePrompt() {
     const p = kid.root.position;
     near = null;
     for (const s of spots) if (Math.hypot(p.x - s.x, p.z - s.z) < s.r) { near = s; break; }
     if (!near) return ui.setAction(null);
-    if (near.kind === "machine") ui.setAction(!cart.attached ? "Grab a cart first (by the door)" : save.coins > 0 ? `Play ${machineName(near.g)} · 1 coin` : "Out of coins · visit the cashier", !cart.attached || save.coins < 1);
+    if (near.kind === "machine" && isLocked(near.g)) ui.setAction(`Locked · win ${progress.MACHINE_UNLOCK[near.g.species] - save.wins} more friends`, true);
+    else if (near.kind === "machine") ui.setAction(!cart.attached ? "Grab a cart first (by the door)" : save.coins > 0 ? `Play ${machineName(near.g)} · 1 coin` : "Out of coins · visit the cashier", !cart.attached || save.coins < 1);
     else if (near.kind === "corral") ui.setAction(cart.attached ? "You have a cart" : "Take a cart", cart.attached);
     else if (near.kind === "cashier") ui.setAction("Cashier · coins & checkout");
     else if (near.kind === "swap") ui.setAction("Big Swap · 5 small = 1 BIG");
@@ -800,7 +860,7 @@ async function main() {
   };
   renderer.setAnimationLoop(frame);
   // (frame: one step of the main loop, for driving it at an exact frame rate in tests)
-  window.CF = { games, get kid() { return kid; }, get mode() { return mode; }, kidBody, camera, controls, save, scene, renderer, frame };
+  window.CF = { games, get kid() { return kid; }, get mode() { return mode; }, kidBody, camera, controls, save, scene, renderer, frame, THREE };
 }
 
 main();
