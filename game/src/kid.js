@@ -307,10 +307,11 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       for (const side of ["L", "R"]) {
         const g = side === "L" ? 1 : -1;
         let up, fo, th;
-        if (happy) {                                  // "yay!": fists up from the elbows
-          // (the upper arms stay down under the capelet: raised, the sleeves came out of it in broken pieces)
+        if (happy) {                                  // "yay!": fists up in front
+          // (the upper arms stay down under the capelet - raised, the sleeves came out of it in broken pieces - and the
+          // elbows bend only a little past square: folded up further, the forearms cut through the sleeves)
           const w = Math.sin(t * 14 + (g > 0 ? 0 : 1.5)) * .25;
-          up = V(g * .35, -1, .35); fo = V(g * (.1 + w * .3), 1, .5); th = V(-g, 0, .3);
+          up = V(g * .3, -1, .12); fo = V(g * (.12 + w * .3), .45, 1); th = V(-g, 0, .3);
         } else if (pose === "reach") {               // hands forward on the machine, palms down, thumbs in
           up = V(g * .15, .3 + .05 * Math.sin(t * 3 + g), 1); fo = V(0, .35, 1); th = V(-g, .2, 0);
         } else if (pose === "push") {                // gripping the cart handle
