@@ -116,11 +116,14 @@ function skyPanorama() {
     }
   });
 }
-const SKY = skyPanorama();
+const SKY = skyPanorama(), PANES = [];
+// the time of day through the windows: the sky painting tinted (white = day)
+export function setSkyTint(hex) { for (const m of PANES) m.color.set(hex); }
 function windowPane(w, h, u0, u1, x, y, z, ry) {
   const grp = new THREE.Group();
   const t = SKY.clone(); t.needsUpdate = true; t.offset.x = u0; t.repeat.x = u1 - u0;
   const pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t }));
+  PANES.push(pane.material);
   pane.userData.noBake = true; grp.add(pane);
   const fw = .32;
   grp.add(rbox(w + fw, fw, .3, .1, C.white, 0, h / 2, .1), rbox(w + fw, fw, .3, .1, C.white, 0, -h / 2, .1));
