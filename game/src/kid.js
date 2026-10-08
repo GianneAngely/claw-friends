@@ -51,12 +51,17 @@ export const FACE_OPTS = [
   { id: "idle", name: "Sly" }, { id: "happy", name: "Happy" }, { id: "wow", name: "Surprised" },
   { id: "sad", name: "Crying" }, { id: "pout", name: "Pout" }, { id: "wink", name: "Wink" },
 ];
-export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red", face: "idle" };
+// her size: the whole model scaled (the cart she pushes stays the same)
+export const HEIGHTS = [
+  { id: "xs", name: "Tiny", scale: .84 }, { id: "s", name: "Short", scale: .92 }, { id: "m", name: "Normal", scale: 1 },
+  { id: "l", name: "Tall", scale: 1.1 }, { id: "xl", name: "Taller", scale: 1.2 },
+];
+export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red", face: "idle", height: "m" };
 const pick = (list, id) => list.find(x => x.id === id) || list[0];
 // outfit ids (+ base: hair / hood colour overrides for the staff) -> the colours makeKid paints
 export function dress(outfit = DEFAULT_OUTFIT, base = BASE) {
   const h = pick(HOODS, outfit.hood), t = pick(TOPS, outfit.top), b = pick(BOTTOMS, outfit.bottom);
-  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, face: pick(FACE_OPTS, outfit.face).id, hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
+  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, face: pick(FACE_OPTS, outfit.face).id, scale: pick(HEIGHTS, outfit.height ?? "m").scale, hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
 }
 
 const SKIN = 0xF8E5D6, INK = 0x2A1F2E;
@@ -269,12 +274,13 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
   const lerpV = (a, b, t) => a.clone().lerp(b, t).normalize();
 
   // ---------- animation state ----------
+  model.scale.setScalar(ch.scale);
   let phase = 0, amt = 0, t = 0, prevBob = 0, bobVel = 0, prevYaw = null, yawRateS = 0, turnS = 0, expr = ch.face, exprT = 0, blinkT = 2 + Math.random() * 3;
   const sp = { ear: { a: 0, v: 0 }, hair: { a: 0, v: 0 }, hairZ: { a: 0, v: 0 }, braid: { a: 0, v: 0 }, cape: { a: 0, v: 0 }, capeZ: { a: 0, v: 0 }, flare: { a: 0, v: 0 } };
   const setMap = name => { const m = FACES[name]; if (faceMat.map !== m) { faceMat.map = m; faceMat.needsUpdate = true; } };
 
   return {
-    root, character: ch,
+    root, character: ch, get height() { return ch.scale; },
     // happy / sad / wow for a while, then back to idle
     setFace(name, sec = 1.6) { expr = name; exprT = sec; },
     // where the walk cycle is, 0..1 (0 = her left heel touches down); for tests
@@ -375,8 +381,8 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       const floor = root.matrixWorld.elements[13];
       let low = Infinity;
       for (const f of FEET) for (const q of f.pts) low = Math.min(low, _fp.copy(q).applyMatrix4(f.b.matrixWorld).y - floor);
-      const bob = -low + hop;
-      B.root.b.position.y += bob;
+      const bob = -low + hop * ch.scale;
+      B.root.b.position.y += bob / ch.scale;   // (bone space is the unscaled model's)
       bobVel = (bob - prevBob) / dt; prevBob = bob;
     },
   };
