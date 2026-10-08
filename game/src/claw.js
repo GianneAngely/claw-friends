@@ -48,6 +48,7 @@ export class ClawGame {
     this.target = null; this.held = null; this.angle = REST;
     this.stats = { grabbed: false, slipped: false };
     this.active = false; this.motor = 0; this.winch = 0;
+    this.grip = 1; this.rareBoost = 1;   // (machine variants: claw strength, how often uncommon / rare friends turn up)
     this.on = () => {};
     this.colliders();
     this.buildClaw();
@@ -134,8 +135,9 @@ export class ClawGame {
 
   // ---------- plush ----------
   pickAcc() {
-    let r = this.rnd() * ACCS.reduce((a, d) => a + d.weight, 0);
-    for (const d of ACCS) if ((r -= d.weight) < 0) return d.id;
+    const w = d => d.weight * (d.tier === "common" ? 1 : this.rareBoost);
+    let r = this.rnd() * ACCS.reduce((a, d) => a + w(d), 0);
+    for (const d of ACCS) if ((r -= w(d)) < 0) return d.id;
     return "plain";
   }
   spawn(acc, x, y, z) {
@@ -257,8 +259,8 @@ export class ClawGame {
       if (P.y <= this.target) { P.y = this.target; this.go("close"); }
     } else if (s === "close") {
       const k = Math.min(1, this.t / .6);
-      this.setMotor(OPEN + (SHUT - OPEN) * k, GRIP * 1.6);
-      if (this.t > .75) { this.setMotor(SHUT, GRIP); this.go("lift"); }
+      this.setMotor(OPEN + (SHUT - OPEN) * k, GRIP * this.grip * 1.6);
+      if (this.t > .75) { this.setMotor(SHUT, GRIP * this.grip); this.go("lift"); }
     } else if (s === "lift") {
       P.y += LIFT * dt; this.winch = 1;
       if (P.y >= CLAW_TOP) { P.y = CLAW_TOP; this.go("top"); }
@@ -352,6 +354,11 @@ export class ClawGame {
         if (this.state === "carry" || this.state === "top" || this.state === "lift") { this.stats.slipped = true; this.on("slip"); }
       } else if (this.state === "release" && this.t > .3) { this.held.held = false; this.held = null; }
     }
+    if (this.held && !this.nearTold && (this.state === "carry" || this.state === "release")) {
+      const t = this.held.body.translation(), l = this.toL(t.x, t.z);
+      if (l.x < CHUTE.x1 + .5 && l.z > CHUTE.z0 - .5) { this.nearTold = true; this.on("near"); }
+    }
+    if (this.state === "aim") this.nearTold = false;
     for (const p of [...this.plush]) {
       this.sync(p, dt);
       const t = p.body.translation(), l = this.toL(t.x, t.z);

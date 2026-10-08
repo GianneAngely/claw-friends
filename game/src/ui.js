@@ -244,7 +244,21 @@ export function showCredits(onClose) {
     <div class="who">Thank you</div><p>for playing! ♡</p></div><button class="ok">Close</button>`, false, onClose);
 }
 export function setCoins(n) { $("coins").textContent = n; }
-export function setScore(n) { $("score").textContent = n; }
+export function setScore(n) {
+  const el = $("score"); el.textContent = n;
+  const pill = el.parentElement; pill.classList.remove("bump"); void pill.offsetWidth; pill.classList.add("bump");
+}
+// a burst of paper confetti from the top of the screen
+export function confetti(n = 50) {
+  const cols = ["#FF74B8", "#FFD86B", "#8ED8FF", "#A8E6CF", "#C9B6F2", "#fff"];
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement("i");
+    el.className = "conf";
+    el.style.cssText = `left:${20 + Math.random() * 60}%;background:${cols[i % cols.length]};--x:${(Math.random() - .5) * 60}vw;--r:${Math.random() * 900 - 450}deg;--d:${1.3 + Math.random() * 1.1}s;--s:${.6 + Math.random() * .8}`;
+    $("hud").appendChild(el);
+    setTimeout(() => el.remove(), 2600);
+  }
+}
 export function setCart(n, cap, show) { $("cartPill").classList.toggle("hide", !show); $("cartN").textContent = `${n}/${cap}`; }
 export function floatScore(text) {
   const el = document.createElement("div");

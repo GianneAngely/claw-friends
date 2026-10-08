@@ -112,6 +112,20 @@ async function main() {
     scene.add(m.root); m.root.updateMatrixWorld(true);
     statics.attach(m.body);
     const g = new ClawGame(RAPIER, world, scene, m, p, p.species, rnd);
+    // two special machines per row: Lucky (strong claw) and Jackpot (more rare friends, weak claw)
+    g.variant = TEST ? null : i % 4 === 0 ? "lucky" : i % 4 === 2 ? "jackpot" : null;
+    if (g.variant === "lucky") g.grip = 1.3;
+    if (g.variant === "jackpot") { g.grip = .85; g.rareBoost = 3.5; }
+    if (g.variant) {
+      const lucky = g.variant === "lucky", tex = canvasTex(360, 120, (c, w, h) => {
+        c.fillStyle = lucky ? "#FFD86B" : "#FF74B8"; c.beginPath(); c.roundRect(6, 6, w - 12, h - 12, 50); c.fill();
+        c.lineWidth = 7; c.strokeStyle = "#4A3A5E"; c.stroke();
+        c.textAlign = "center"; c.textBaseline = "middle"; c.font = "700 58px Fredoka"; c.lineWidth = 12; c.lineJoin = "round";
+        c.strokeText(lucky ? "LUCKY ★" : "JACKPOT", w / 2, h / 2 + 3); c.fillStyle = "#fff"; c.fillText(lucky ? "LUCKY ★" : "JACKPOT", w / 2, h / 2 + 3);
+      });
+      const tag = new THREE.Mesh(new THREE.PlaneGeometry(1.5, .5), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+      tag.position.set(-1.45, 6.0, 2.2); tag.rotation.z = .12; m.root.add(tag);
+    }
     g.fill(); g.place = p; g.index = i;
     return g;
   });
@@ -380,7 +394,7 @@ async function main() {
   // ---------- modes ----------
   let grabPress = 0, roundWins = 0;
   const owned = save.owned;
-  const machineName = g => SPECIES_BY_ID[g.species].machine;
+  const machineName = g => SPECIES_BY_ID[g.species].machine + (g.variant === "lucky" ? " · Lucky" : g.variant === "jackpot" ? " · Jackpot" : "");
 
   function startRound() {
     if (save.coins < 1) { ui.toast("Out of coins! The cashier gives free coins every day"); return; }
@@ -432,7 +446,10 @@ async function main() {
       audio.sfx.win(); kid.setFace("happy", 2.6);
       const opened = progress.openSpecies(save).length;
       save.seen[key] = true; save.wins++; if (shiny) save.shiny[key] = true; persist();
-      addScore((POINTS[p.tier] || 10) * (shiny ? 3 : 1));
+      const combo = g === active && roundWins >= 1;               // a second friend from the same grab
+      addScore((POINTS[p.tier] || 10) * (shiny ? 3 : 1) * (combo ? 2 : 1));
+      if (combo) { ui.banner(`COMBO x${roundWins + 1}! Double stars`); kid.setFace("wow", 1.2); }
+      if (!TEST) { ui.confetti(shiny || combo ? 90 : 45); shake(shiny || combo ? .22 : .12); }
       req("win", { key });
       if (!TEST && progress.openSpecies(save).length > opened) {
         const sp = progress.openSpecies(save).at(-1);
@@ -445,7 +462,12 @@ async function main() {
       window.WINS = (window.WINS || 0) + 1;
     }
     if (g !== active) return;
-    if (ev === "slip") { ui.toast("It slipped!"); audio.sfx.slip(); kid.setFace("sad", 1.8); }
+    if (ev === "slip") {
+      const h = g.head.translation(), l = g.toL(h.x, h.z), close = l.x < 0 && l.z > 0;   // (slipped on the way to the chute)
+      ui.toast(close ? "Nooo, sooo close!" : "It slipped!"); audio.sfx.slip(); kid.setFace("sad", close ? 2.4 : 1.8);
+      if (close && !TEST) shake(.1);
+    }
+    if (ev === "near" && !TEST) slowT = .85;   // slow motion as the friend is carried over the chute
     if (ev === "miss") { ui.toast("So close!"); audio.sfx.miss(); kid.setFace("sad", 1.4); }
     if (ev === "grab") { audio.sfx.grab(); kid.setFace("wow", 1.0); }
     if (ev === "open") audio.sfx.open();
@@ -726,6 +748,9 @@ async function main() {
 
   // ---------- title screen, pause, settings ----------
   let paused = false, titleT = 0;
+  // juice: slow motion over the chute, a little camera shake on wins
+  let slowT = 0, timeScale = 1, shakeT = 0, shakeA = 0;
+  function shake(a) { shakeA = a; shakeT = .35; }
   function applySettings(patch) {
     S = settings.set(patch);
     audio.setVolumes(S.music, S.sfx);
@@ -767,7 +792,11 @@ async function main() {
     const dt = Math.max(0, Math.min(.1, (now - last) / 1000)); last = now;   // rAF clocks can start behind performance.now()
     let steps = 0;
     if (TEST) steps = TEST === "claw" ? 24 : 6;
-    else { accum += dt; while (accum >= STEP && steps < 4) { accum -= STEP; steps++; } accum = Math.min(accum, STEP); }   // (a long hitch is dropped, not caught up later)
+    else {
+      slowT = Math.max(0, slowT - dt);
+      timeScale += ((slowT > 0 ? .3 : 1) - timeScale) * Math.min(1, dt * 10);
+      accum += dt * timeScale; while (accum >= STEP && steps < 4) { accum -= STEP; steps++; } accum = Math.min(accum, STEP);
+    }   // (a long hitch is dropped, not caught up later)
     const ev = steps > 0 ? ui.consume() : {};   // presses wait for the next physics step instead of being dropped
     if (ev.keys && !ui.isModal()) ui.showControls(TOUCH, () => tutGo(0));
     if (ev.pause && (mode === "walk" || mode === "machine")) pause();
@@ -852,7 +881,12 @@ async function main() {
     sun.position.set(f.x + 13, 24, f.z + 16); sun.target.position.set(f.x, 0, f.z);
     if (Q.get("cam") && frames < 3) { const c = Q.get("cam").split(",").map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); controls.update(); }
     toppers.update(camera.position, controls.target, dt, mode !== "wardrobe");
+    const sk = shakeT > 0 ? shakeA * shakeT / .35 : 0;
+    shakeT = Math.max(0, shakeT - dt);
+    const so = new THREE.Vector3((Math.random() - .5) * sk, (Math.random() - .5) * sk, 0).applyQuaternion(camera.quaternion);
+    camera.position.add(so);
     if (!TEST || frames % 10 === 0 || window.TEST_DONE || window.FROZEN) composer.render();
+    camera.position.sub(so);
     if (++frames >= 5 && !tween && (TEST !== "machine" || frames > 40) && (TEST !== "walk" || window.ARRIVED) && (TEST !== "wardrobe" || frames > 30)) window.READY = true;
     if (TEST === "claw" && testRounds.length >= ROUNDS && !window.TEST_DONE) {
       window.TEST_RESULT = { rounds: testRounds, wins: window.WINS || 0 }; window.TEST_DONE = true;
