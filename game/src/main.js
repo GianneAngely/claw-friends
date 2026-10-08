@@ -145,8 +145,24 @@ async function main() {
     sign.position.set(0, 4.2, 2.25); g.m.root.add(sign); g.lockSign = sign;
   }
   const isLocked = g => !TEST && !progress.isOpen(save, g.species);
+  // the day's event machine: double stars all day (one of the open, ordinary machines; it moves every day)
+  const eventTex = canvasTex(360, 120, (c, w, h) => {
+    c.fillStyle = "#7FE0C2"; c.beginPath(); c.roundRect(6, 6, w - 12, h - 12, 50); c.fill();
+    c.lineWidth = 7; c.strokeStyle = "#4A3A5E"; c.stroke();
+    c.textAlign = "center"; c.textBaseline = "middle"; c.font = "700 50px Fredoka"; c.lineWidth = 12; c.lineJoin = "round";
+    c.strokeText("★x2 TODAY", w / 2, h / 2 + 3); c.fillStyle = "#fff"; c.fillText("★x2 TODAY", w / 2, h / 2 + 3);
+  });
+  const eventTag = new THREE.Mesh(new THREE.PlaneGeometry(1.5, .5), new THREE.MeshBasicMaterial({ map: eventTex, transparent: true }));
+  eventTag.position.set(1.45, 6.0, 2.2); eventTag.rotation.z = -.12;
+  let eventGame = null;
+  function pickEvent() {
+    if (TEST) return;
+    const pool = games.filter(g => !g.variant && !isLocked(g));
+    eventGame = pool[(save.day * 7) % pool.length];
+    eventGame.m.root.add(eventTag);
+  }
   const paintLocks = () => { for (const g of games) if (g.lockSign) g.lockSign.visible = isLocked(g); };
-  paintLocks();
+  paintLocks(); pickEvent();
   const toppers = bakeToppers(games.map(g => g.m)); scene.add(toppers.group);
   for (let i = 0; i < 320; i++) world.step();
   const rows = SPECIES.map(s => games.filter(g => g.species === s.id)), rowBake = [];
@@ -406,7 +422,7 @@ async function main() {
     if (ui.isModal()) return setTimeout(finishDay, 500);   // (after the win card is closed)
     const day = save.day, rw = progress.dayReward(day);
     save.coins += rw.coins; ui.setCoins(save.coins);
-    progress.nextDay(save, rnd); persist();
+    progress.nextDay(save, rnd); persist(); pickEvent();
     addScore(rw.stars); refreshGoals();
     audio.sfx.win(); kid.setFace("happy", 2.4);
     ui.showDayDone(day, rw, save.day, save.reqs);
@@ -436,7 +452,7 @@ async function main() {
   // ---------- modes ----------
   let grabPress = 0, roundWins = 0;
   const owned = save.owned;
-  const machineName = g => SPECIES_BY_ID[g.species].machine + (g.variant === "lucky" ? " · Lucky" : g.variant === "jackpot" ? " · Jackpot" : "");
+  const machineName = g => SPECIES_BY_ID[g.species].machine + (g.variant === "lucky" ? " · Lucky" : g.variant === "jackpot" ? " · Jackpot" : g === eventGame ? " · ★x2" : "");
 
   function startRound() {
     if (save.coins < 1) { ui.toast("Out of coins! The cashier gives free coins every day"); return; }
@@ -489,7 +505,7 @@ async function main() {
       const opened = progress.openSpecies(save).length;
       save.seen[key] = true; save.wins++; if (shiny) save.shiny[key] = true; persist();
       const combo = g === active && roundWins >= 1;               // a second friend from the same grab
-      addScore((POINTS[p.tier] || 10) * (shiny ? 3 : 1) * (combo ? 2 : 1));
+      addScore((POINTS[p.tier] || 10) * (shiny ? 3 : 1) * (combo ? 2 : 1) * (g === eventGame ? 2 : 1));
       if (combo) { ui.banner(`COMBO x${roundWins + 1}! Double stars`); kid.setFace("wow", 1.2); }
       if (!TEST) { ui.confetti(shiny || combo ? 90 : 45); shake(shiny || combo ? .22 : .12); }
       req("win", { key });
