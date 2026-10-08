@@ -14,13 +14,25 @@ npm run build
 open dist/index.html
 ```
 
+## How to play
+
+- Start from the title screen, grab a cart by the door and play the claw machines (1 coin a go).
+- Won friends ride in your cart. Swap 5 small ones for a BIG friend, then check out at the cashier to put new friends on your shelf.
+- After the starter goals, every **day** brings three requests. Finish them for coins and stars.
+- **Stars** unlock outfits in the wardrobe: faces, sizes, animal hoods, hair colours, tees and shorts.
+- Machine rows open as you win. Look out for **Lucky** (strong claw), **Jackpot** (more rare friends) and the day's **★x2** machine.
+- Some wins are **shiny** (triple stars). A full set of 6 earns a bonus.
+
 ## Controls
 
-- **WASD** — walk, or move the claw at a machine
-- **E / Space** — use, grab
-- **Arrow keys or drag** — look around
-- **C** — wardrobe (tee and shorts colours)
-- **Esc** — leave the machine
+- **WASD**: walk, or move the claw at a machine
+- **E / Space**: use, grab
+- **Arrow keys or drag**: look around
+- **V**: first-person view
+- **C**: wardrobe
+- **H**: put the cart away
+- **G**: fold the goals list
+- **Esc**: pause, or leave the machine
 
 ## What's inside
 
