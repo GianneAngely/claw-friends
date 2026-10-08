@@ -1,6 +1,7 @@
 // Tiny synthesized sound effects (WebAudio, no files). The context starts on the first user gesture.
 const KEY = "clawfriends.muted";
 let ctx = null, master = null, motor = null, winch = null, muted = false, lastThud = 0;
+let volSfx = .8, volMusic = .8;   // (the settings sliders, 0..1)
 try { muted = localStorage.getItem(KEY) === "1"; } catch {}
 
 function hum(freq, type, cutoff) {
@@ -14,20 +15,28 @@ function start() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   ctx = new AC();
-  master = ctx.createGain(); master.gain.value = muted ? 0 : .55; master.connect(ctx.destination);
+  master = ctx.createGain(); master.gain.value = muted ? 0 : .55 * volSfx; master.connect(ctx.destination);
   motor = hum(62, "sawtooth", 260); winch = hum(150, "square", 700);
   startMusic();
 }
-export function init() {
-  for (const ev of ["pointerdown", "keydown", "touchstart"]) addEventListener(ev, start, { passive: true });
+export function init(auto = true) {
+  if (auto) for (const ev of ["pointerdown", "keydown", "touchstart"]) addEventListener(ev, start, { passive: true });
 }
+export { start };
 export const isMuted = () => muted;
 export function toggleMute() {
   muted = !muted;
   try { localStorage.setItem(KEY, muted ? "1" : "0"); } catch {}
-  if (master) master.gain.setTargetAtTime(muted ? 0 : .55, ctx.currentTime, .05);
+  applyVolumes();
   return muted;
 }
+// sound effects go through master, the music has its own way out (so each slider only moves its own)
+function applyVolumes() {
+  if (!ctx) return;
+  master.gain.setTargetAtTime(muted ? 0 : .55 * volSfx, ctx.currentTime, .05);
+  if (musicGain) musicGain.gain.setTargetAtTime(musicOn && !muted ? .28 * volMusic : 0, ctx.currentTime, .1);
+}
+export function setVolumes(music, sfx) { volMusic = music; volSfx = sfx; applyVolumes(); }
 
 function tone(freq, dur, type = "sine", vol = .2, slide = 0, delay = 0) {
   if (!ctx) return;
@@ -124,7 +133,7 @@ function tick() {
 }
 export function startMusic() {
   if (!ctx || musicGain) return;
-  musicGain = ctx.createGain(); musicGain.gain.value = musicOn ? .5 : 0; musicGain.connect(master);
+  musicGain = ctx.createGain(); musicGain.gain.value = musicOn && !muted ? .28 * volMusic : 0; musicGain.connect(ctx.destination);
   nextBeat = ctx.currentTime + .1;
   timer = setInterval(tick, 40);
 }
@@ -132,6 +141,6 @@ export const isMusicOn = () => musicOn;
 export function toggleMusic() {
   musicOn = !musicOn;
   try { localStorage.setItem(MKEY, musicOn ? "1" : "0"); } catch {}
-  if (musicGain) { musicGain.gain.setTargetAtTime(musicOn ? .5 : 0, ctx.currentTime, .1); if (musicOn) nextBeat = ctx.currentTime + .1; }
+  if (musicGain) { applyVolumes(); if (musicOn) nextBeat = ctx.currentTime + .1; }
   return musicOn;
 }

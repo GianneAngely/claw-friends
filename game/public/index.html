@@ -25,7 +25,7 @@
     <div class="wsec"><b>Bottom</b><div class="wrow" id="w-bottom"></div></div>
     <button class="ok" id="w-done">Done</button>
   </div>
-  <div class="pills"><button class="btn snd" id="mus" aria-label="Music on or off"></button><button class="btn snd" id="snd" aria-label="Sound on or off"></button><div class="pill hide" id="cartPill"><span data-icon2="cart"></span><b id="cartN">0/15</b></div><div class="pill score"><span data-icon2="star"></span><b id="score">0</b></div><div class="pill"><span data-icon="coin"></span><b id="coins">0</b></div></div>
+  <div class="pills"><button class="btn snd" id="pauseBtn" aria-label="Pause"></button><button class="btn snd" id="mus" aria-label="Music on or off"></button><button class="btn snd" id="snd" aria-label="Sound on or off"></button><div class="pill hide" id="cartPill"><span data-icon2="cart"></span><b id="cartN">0/15</b></div><div class="pill score"><span data-icon2="star"></span><b id="score">0</b></div><div class="pill"><span data-icon="coin"></span><b id="coins">0</b></div></div>
   <div class="goals" id="goals"></div>
   <div class="top hide" id="top">
     <div class="timer"><span id="mname">Quack Catch</span><b id="tleft">0:20</b></div>
@@ -40,7 +40,12 @@
   <div class="joy hide" id="joy"><div class="knob" id="knob"></div></div>
   <div class="toast" id="toast"></div>
   <div class="modal hide" id="modal"><div class="card" id="card"></div></div>
-  <div class="loading" id="loading"><span data-icon="duck"></span>Loading…</div>
+  <div class="title hide" id="title">
+    <div class="tlogo"><span data-icon="duck"></span><h1>Claw Friends</h1><p>a cozy claw machine arcade</p></div>
+    <div class="tmenu" id="tmenu"></div>
+    <div class="tfoot">a game by Angel's Desk</div>
+  </div>
+  <div class="loading" id="loading"><div class="lbox"><span data-icon="duck"></span><b>Claw Friends</b><div class="lbar"><i id="lbar"></i></div><small id="ltext">Waking up the arcade…</small></div></div>
 </div>
 <script src="art.js"></script>
 <script src="game.js"></script>
