@@ -273,3 +273,8 @@ body.titling #hud > *:not(#title):not(.modal):not(.loading):not(.toast) { displa
 @keyframes bump { 40% { transform: scale(1.18); } }
 .conf { position: absolute; top: -20px; width: 10px; height: 16px; border-radius: 3px; border: 2px solid var(--ink); transform: scale(var(--s)); animation: conf var(--d) cubic-bezier(.25, .5, .5, 1) forwards; pointer-events: none; }
 @keyframes conf { to { transform: translate(var(--x), 105vh) rotate(var(--r)) scale(var(--s)); } }
+
+/* ---- speech bubbles ---- */
+.bubble { transform: translate(-50%, -100%); padding: 6px 14px; background: #fff; border: 3px solid var(--ink); border-radius: 16px; font-weight: 700; font-size: 16px; white-space: nowrap; box-shadow: var(--drop); animation: bpop .3s cubic-bezier(.3, 1.6, .5, 1); pointer-events: none; }
+@keyframes bpop { from { transform: translate(-50%, -100%) scale(.6); opacity: 0; } }
+.bubble::after { content: ""; position: absolute; left: 50%; bottom: -10px; margin-left: -8px; border: 8px solid transparent; border-top-color: var(--ink); border-bottom: 0; }

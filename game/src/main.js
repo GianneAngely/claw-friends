@@ -9,7 +9,8 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { outlineU, bake, ANIME, canvasTex } from "./gfx.js";
 import { makeMachine, bakeToppers, MACHINE_BY_ID, IX, IZ } from "./machine.js";
 import { makePlush, PLUSH, PLUSH_BY_KEY, SPECIES } from "./plush.js";
-import { buildRoom, PLACES, START, SHELF, CASHIER, SWAP, CORRAL, cartModel } from "./room.js";
+import { buildRoom, setSkyTint, PLACES, START, SHELF, CASHIER, SWAP, CORRAL, cartModel } from "./room.js";
+import { makeVisitors } from "./visitors.js";
 import { ClawGame } from "./claw.js";
 import { makeKid, loadKid, DEFAULT_OUTFIT, HOODS, HAIRS, FACE_OPTS, HEIGHTS, TOPS, BOTTOMS } from "./kid.js";
 import * as ui from "./ui.js";
@@ -245,6 +246,47 @@ async function main() {
   cashierNpc.root.position.set(CASHIER.x - 1.7, 0, CASHIER.z); cashierNpc.root.rotation.y = Math.PI / 2; scene.add(cashierNpc.root);
   const swapNpc = makeKid({ hood: "koala", top: "mint", bottom: "denim" }, { hair: 0xB9A2F0, hoodColor: 0xFFFFFF });
   swapNpc.root.position.set(SWAP.x + 1.7, 0, SWAP.z); swapNpc.root.rotation.y = -Math.PI / 2; scene.add(swapNpc.root);
+  const visitors = TEST ? null : makeVisitors(scene, PLACES, rnd, S.quality === "low" ? 1 : 3);   // (each kid costs ~80 draw calls)
+
+  // ---------- speech bubbles over heads ----------
+  const bubbles = [];
+  function say(obj, text, ms = 2000) {
+    for (const b of bubbles) if (b.obj === obj) { b.el.textContent = text; b.until = performance.now() + ms; return; }
+    const el = document.createElement("div"); el.className = "bubble"; el.textContent = text;
+    document.getElementById("hud").appendChild(el);
+    bubbles.push({ el, obj, until: performance.now() + ms });
+  }
+  const _bp = new THREE.Vector3();
+  function placeBubbles() {
+    const now = performance.now();
+    for (const b of [...bubbles]) {
+      if (now > b.until || mode === "title") { b.el.remove(); bubbles.splice(bubbles.indexOf(b), 1); continue; }
+      b.obj.getWorldPosition(_bp); _bp.y += 4.6; _bp.project(camera);
+      const vis = _bp.z < 1 && Math.abs(_bp.x) < 1.1 && Math.abs(_bp.y) < 1.1;
+      b.el.style.display = vis ? "" : "none";
+      b.el.style.left = ((_bp.x + 1) / 2 * innerWidth) + "px"; b.el.style.top = ((1 - _bp.y) / 2 * innerHeight) + "px";
+    }
+  }
+  // the staff greet Kyoko when she comes near (not too often)
+  const staffLines = [
+    { npc: cashierNpc, at: CASHIER, lines: ["Welcome! ♡", "Free coins every day!", "Check out here!", "Find any cute ones?"], next: 0 },
+    { npc: swapNpc, at: SWAP, lines: ["5 small = 1 BIG!", "Big friends are so soft~", "Wanna swap?"], next: 0 },
+  ];
+  function staffTalk() {
+    const now = performance.now(), p = kid.root.position;
+    for (const s of staffLines) if (now > s.next && Math.hypot(p.x - s.at.x, p.z - s.at.z) < 7) {
+      say(s.npc.root, s.lines[Math.floor(rnd() * s.lines.length)], 2400); s.npc.setFace("happy", 1.2); s.next = now + 15000;
+    }
+  }
+  // ---------- time of day: the local clock (?hour= to try), seen through the windows and the door ----------
+  function timeOfDay() {
+    const d = new Date(), h = Q.get("hour") ? +Q.get("hour") : d.getHours() + d.getMinutes() / 60;
+    const night = h < 6 || h >= 19, dusk = !night && (h >= 16.5 || h < 7.5);
+    setSkyTint(night ? 0x4C4F96 : dusk ? 0xFFC9B0 : 0xFFFFFF);
+    scene.background.set(night ? 0x2E3266 : dusk ? 0xF6CDBE : 0xDCEFFB);
+    bloom.strength = night ? .34 : .22;          // (the machines glow a little more at night)
+  }
+  timeOfDay(); setInterval(timeOfDay, 60000);
 
   // ---------- camera ----------
   const controls = new OrbitControls(camera, canvas);
@@ -839,6 +881,9 @@ async function main() {
     if (mode === "wardrobe") kid.root.rotation.y = kidYaw;
     stepFlights(paused ? 0 : dt);
     cashierNpc.animate(dt, 0); swapNpc.animate(dt, 0);
+    if (visitors) for (const l of visitors.update(paused ? 0 : dt, kid.root.position)) say(l.v.kid.root, l.text, 1600);
+    if (mode === "walk") staffTalk();
+    placeBubbles();
     room.update(dt, kid.root.position, camera.position);
     kid.animate(dt, mode === "walk" ? kidSpeed : 0, mode === "title" ? "wave" : mode === "machine" ? "reach" : cart.attached && !cart.hidden && mode === "walk" ? "push" : "walk");
     tutTick(dt);
