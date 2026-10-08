@@ -148,6 +148,7 @@ export function setMode(m) {
   $("logo").classList.toggle("hide", !walk);
   $("wardBtn").classList.toggle("hide", !walk);
   $("viewBtn").classList.toggle("hide", ward);
+  $("viewBtn").classList.toggle("slot2", machine);   // (no wardrobe button at a machine: no gap left where it was)
   $("keysBtn").classList.toggle("hide", ward);
   $("goals").classList.toggle("hide", !walk || tutOn);
   $("tut").classList.toggle("hide", !tutOn || ward);
