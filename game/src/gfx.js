@@ -74,6 +74,27 @@ export function toonTex(c, map) {
   if (!cache.has(k)) cache.set(k, animeMat(c, { map }, 0, 0, 0, 0));
   return cache.get(k);
 }
+// the drawn hair in another colour: its base tone becomes `to`, darker lines a darker `to`, highlights go toward white
+export function toonHair(map, from, to) {
+  const k = "h" + map.uuid + "_" + to;
+  if (cache.has(k)) return cache.get(k);
+  const m = animeMat(0xFFFFFF, { map }, 0, 0, 0, 0), anime = m.onBeforeCompile;
+  m.onBeforeCompile = sh => {
+    anime(sh);
+    Object.assign(sh.uniforms, { uFrom: { value: new THREE.Color(from) }, uTo: { value: new THREE.Color(to) } });
+    sh.fragmentShader = sh.fragmentShader
+      .replace("void main() {", "uniform vec3 uFrom, uTo;\nvoid main() {")
+      .replace("#include <map_fragment>", `#include <map_fragment>
+  {
+    const vec3 W = vec3(.2126, .7152, .0722);
+    float l = dot(diffuseColor.rgb, W) / dot(uFrom, W);
+    diffuseColor.rgb = l <= 1.0 ? uTo * l : mix(uTo, vec3(1.0), clamp((l - 1.0) / 2.5, 0.0, .85));
+  }`);
+  };
+  m.customProgramCacheKey = () => "anime_hair";
+  cache.set(k, m);
+  return m;
+}
 export function toon(c, opts = {}) {
   const k = "t" + c + JSON.stringify(opts, (key, v) => (v && v.isTexture ? v.uuid : v));
   if (!cache.has(k)) cache.set(k, animeMat(c, opts));
