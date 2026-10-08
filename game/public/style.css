@@ -117,6 +117,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn.ward svg { width: 30px; height: 30px; }
 .btn.keys { top: 74px; left: 16px; }
 .btn.keys svg { width: 30px; height: 30px; }
+.btn.view { top: 74px; left: 128px; }
+.btn.view svg { width: 30px; height: 30px; }
 .keylist { display: grid; gap: 6px; margin: 8px 0 12px; text-align: left; }
 .krow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 14px; background: #FBF1F7; }
 .krow span { flex: none; font-weight: 600; font-size: 14px; }

@@ -214,9 +214,27 @@ async function main() {
   const fwd = new THREE.Vector3(), right = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
   function camAxes() { camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize(); right.crossVectors(fwd, UP).normalize(); }
   let mode = "walk", active = null;
+  // first-person view (V / the eye button): the camera at Kyoko's eyes while walking, her body hidden (the cart stays)
+  let fp = false, fpYaw = 0, fpPitch = -.12, kidHidden = false;
+  const EYE = 3.6;
+  const fpEye = () => kid.root.position.clone().add(new THREE.Vector3(0, EYE, 0));
+  const fpLook = () => fpEye().add(new THREE.Vector3(Math.sin(fpYaw) * Math.cos(fpPitch), Math.sin(fpPitch), Math.cos(fpYaw) * Math.cos(fpPitch)).multiplyScalar(6));
+  const fpOn = () => fp && mode === "walk";
+  function setFirstPerson(on) {
+    fp = on;
+    const p = kid.root.position;
+    if (on) {
+      fpYaw = Math.atan2(controls.target.x - camera.position.x, controls.target.z - camera.position.z); fpPitch = -.12;
+      tweenTo(fpEye(), fpLook(), .5);
+    } else {
+      const d = new THREE.Vector3(Math.sin(fpYaw), 0, Math.cos(fpYaw));
+      tweenTo(new THREE.Vector3(p.x - d.x * 17.5, 10.9, p.z - d.z * 17.5), new THREE.Vector3(p.x, 3.4, p.z), .5);
+    }
+    setView();
+  }
   function setView() {
     const port = camera.aspect < 1, m = mode === "machine";
-    camera.fov = m ? (port ? 70 : 50) : (port ? 58 : 40); camera.updateProjectionMatrix();
+    camera.fov = m ? (port ? 70 : 50) : fpOn() ? (port ? 80 : 68) : (port ? 58 : 40); camera.updateProjectionMatrix();
     Object.assign(controls, m
       ? { minDistance: 7, maxDistance: 11.6, minAzimuthAngle: active.place.yaw - 1.0, maxAzimuthAngle: active.place.yaw + 1.0 }
       : { minDistance: 8, maxDistance: 30, minAzimuthAngle: -Infinity, maxAzimuthAngle: Infinity });
@@ -326,6 +344,7 @@ async function main() {
     const p = kid.root.position, back = g.toW(0, 0, 18);
     const dir = new THREE.Vector3(back.x - p.x, 0, back.z - p.z).setLength(15);
     dir.setLength(17.5);
+    if (fp) { fpYaw = kidYaw; fpPitch = -.12; tweenTo(fpEye(), fpLook()); return; }
     tweenTo(new THREE.Vector3(p.x + dir.x, 10.9, p.z + dir.z), new THREE.Vector3(p.x, 3.4, p.z));
   }
   function onGame(g, ev, data) {
@@ -366,7 +385,7 @@ async function main() {
   let walkCam = null;
   function openWardrobe() {
     if (mode !== "walk" || ui.isModal()) return;
-    mode = "wardrobe"; ui.setMode("wardrobe");
+    mode = "wardrobe"; ui.setMode("wardrobe"); setView();
     walkCam = { pos: camera.position.clone(), target: controls.target.clone() };
     camAxes();
     kidYaw = Math.atan2(-fwd.x, -fwd.z);
@@ -381,8 +400,9 @@ async function main() {
     });
   }
   function closeWardrobe() {
-    mode = "walk"; ui.setMode("walk");
+    mode = "walk"; ui.setMode("walk"); setView();
     const d = walkCam.target.clone().sub(walkCam.pos).setY(0).normalize(), p = kid.root.position;
+    if (fp) { fpYaw = Math.atan2(d.x, d.z); tweenTo(fpEye(), fpLook()); return; }
     tweenTo(new THREE.Vector3(p.x - d.x * 17.5, 10.9, p.z - d.z * 17.5), new THREE.Vector3(p.x, 3.4, p.z));
   }
   // drag to spin the kid while the wardrobe is open
@@ -390,6 +410,15 @@ async function main() {
   canvas.addEventListener("pointerdown", e => { if (mode === "wardrobe") spin = e.clientX; });
   addEventListener("pointermove", e => { if (spin !== null && mode === "wardrobe") { kidYaw += (e.clientX - spin) * .012; spin = e.clientX; } });
   addEventListener("pointerup", () => { spin = null; });
+  let fpDrag = null;
+  canvas.addEventListener("pointerdown", e => { if (fpOn()) fpDrag = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
+  addEventListener("pointermove", e => {
+    if (!fpDrag || e.pointerId !== fpDrag.id || !fpOn()) return;
+    fpYaw += (e.clientX - fpDrag.x) * .005;    // (drag the view, like the third-person camera)
+    fpPitch = THREE.MathUtils.clamp(fpPitch + (e.clientY - fpDrag.y) * .004, -1.1, 1);
+    fpDrag.x = e.clientX; fpDrag.y = e.clientY;
+  });
+  addEventListener("pointerup", e => { if (fpDrag && e.pointerId === fpDrag.id) fpDrag = null; });
 
   function doAction() {
     if (!near || ui.isModal()) return;
@@ -493,10 +522,12 @@ async function main() {
     const m = cc.computedMovement(), p = kidBody.translation();
     kidBody.setNextKinematicTranslation({ x: p.x + m.x, y: KID_Y, z: p.z + m.z });
     kidSpeed = Math.min(1, Math.hypot(m.x, m.z) / (WALK * dt));
-    if (kidVel.lengthSq() > .3) kidYaw += angDiff(kidYaw, Math.atan2(kidVel.x, kidVel.z)) * Math.min(1, dt * 11);
+    if (fp) kidYaw = fpYaw;
+    else if (kidVel.lengthSq() > .3) kidYaw += angDiff(kidYaw, Math.atan2(kidVel.x, kidVel.z)) * Math.min(1, dt * 11);
     if (ev.action && !ui.isModal()) doAction();
     if (ev.wardrobe) openWardrobe();
     if (ev.hideCart && !ui.isModal()) toggleCart();
+    if (ev.view && !ui.isModal() && !tween) setFirstPerson(!fp);
   }
   function machineStep(dt, ev) {
     const g = active;
@@ -644,7 +675,9 @@ async function main() {
     if (active) { grabPress = Math.max(0, grabPress - dt * 4); active.m.pressGrab(grabPress); }
     const look = ui.lookDir();
     if (mode === "wardrobe") kidYaw += look.x * 2.2 * dt;
-    else if ((look.x || look.y) && !tween && !ui.isModal()) {
+    else if (fpOn()) {
+      if (!ui.isModal()) { fpYaw -= look.x * 1.9 * dt; fpPitch = THREE.MathUtils.clamp(fpPitch + look.y * 1.1 * dt, -1.1, 1); }
+    } else if ((look.x || look.y) && !tween && !ui.isModal()) {
       const off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
       sph.theta = THREE.MathUtils.clamp(sph.theta - look.x * 1.9 * dt, controls.minAzimuthAngle, controls.maxAzimuthAngle);
       sph.phi = THREE.MathUtils.clamp(sph.phi + look.y * 1.1 * dt, controls.minPolarAngle, controls.maxPolarAngle);
@@ -656,9 +689,12 @@ async function main() {
       const k = ease(Math.min(1, tween.t));
       camera.position.lerpVectors(tween.p0, tween.p1, k);
       controls.target.lerpVectors(tween.t0, tween.t1, k);
-      if (tween.t >= 1) { tween = null; controls.enabled = mode !== "wardrobe"; }
+      if (tween.t >= 1) { tween = null; controls.enabled = mode !== "wardrobe" && !fpOn(); }
     }
-    controls.update();
+    if (fpOn() && !tween) { camera.position.copy(fpEye()); controls.target.copy(fpLook()); camera.lookAt(controls.target); }
+    else controls.update();
+    const hide = fpOn() && (!tween || tween.t > .6);
+    if (hide !== kidHidden) { kidHidden = hide; for (const c of kid.root.children) if (!cart.obj || c !== cart.obj.root) c.visible = !hide; }
     const f = controls.target;
     sun.position.set(f.x + 13, 24, f.z + 16); sun.target.position.set(f.x, 0, f.z);
     if (Q.get("cam") && frames < 3) { const c = Q.get("cam").split(",").map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); controls.update(); }
