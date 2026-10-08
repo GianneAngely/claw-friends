@@ -218,13 +218,20 @@ async function main() {
   // cart stays). At a machine the eyes are in front of the glass, a little higher than hers (from her height the
   // prize pile hid the floor)
   let fp = false, fpYaw = 0, fpPitch = -.12, kidHidden = false;
+  // at a machine the arrows / a drag move her round its front (to see through the side glass) and up / down,
+  // always looking at the prizes; a step past ~.95 rad would put her into the next machine
+  let mAz = 0, mH = 0;
   const EYE = 3.6;
   const fpEye = () => {
-    if (mode === "machine" && active) { const e = active.toW(.4, 4.7, 5); return new THREE.Vector3(e.x, e.y, e.z); }
+    if (mode === "machine" && active) { const e = active.toW(5 * Math.sin(mAz), 4.7 + mH, 5 * Math.cos(mAz)); return new THREE.Vector3(e.x, e.y, e.z); }
     return kid.root.position.clone().add(new THREE.Vector3(0, EYE, 0));
   };
   const fpLook = () => fpEye().add(new THREE.Vector3(Math.sin(fpYaw) * Math.cos(fpPitch), Math.sin(fpPitch), Math.cos(fpYaw) * Math.cos(fpPitch)).multiplyScalar(6));
   const fpOn = () => fp && (mode === "walk" || mode === "machine");
+  function aimAtPrizes() {
+    const e = fpEye(), l = active.toW(0, 3.4, 0), d = new THREE.Vector3(l.x - e.x, l.y - e.y, l.z - e.z);
+    fpYaw = Math.atan2(d.x, d.z); fpPitch = Math.asin(d.y / d.length());
+  }
   function setFirstPerson(on) {
     fp = on;
     const p = kid.root.position;
@@ -338,10 +345,10 @@ async function main() {
     setView();
     const port = camera.aspect < 1;
     const c = g.toW(0, port ? 6.4 : 6.8, 11.2), t = g.toW(0, port ? 4.3 : 4.7, 0);
+    mAz = mH = 0;
     if (fp) {                                       // looking at the prizes through the glass
-      const e = fpEye(), l = g.toW(0, 3.4, 0), d = new THREE.Vector3(l.x - e.x, l.y - e.y, l.z - e.z);
-      fpYaw = Math.atan2(d.x, d.z); fpPitch = Math.asin(d.y / d.length());
-      tweenTo(e, fpLook());
+      aimAtPrizes();
+      tweenTo(fpEye(), fpLook());
     } else tweenTo(new THREE.Vector3(c.x, c.y, c.z), new THREE.Vector3(t.x, t.y, t.z));
     startRound();
   }
@@ -427,8 +434,13 @@ async function main() {
   canvas.addEventListener("pointerdown", e => { if (fpOn()) fpDrag = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
   addEventListener("pointermove", e => {
     if (!fpDrag || e.pointerId !== fpDrag.id || !fpOn()) return;
-    fpYaw += (e.clientX - fpDrag.x) * .005;    // (drag the view, like the third-person camera)
-    fpPitch = THREE.MathUtils.clamp(fpPitch + (e.clientY - fpDrag.y) * .004, -1.1, 1);
+    if (mode === "machine") {                  // (drag the view: she steps the other way)
+      mAz = THREE.MathUtils.clamp(mAz - (e.clientX - fpDrag.x) * .004, -.95, .95);
+      mH = THREE.MathUtils.clamp(mH + (e.clientY - fpDrag.y) * .006, -1, 1.6);
+    } else {
+      fpYaw += (e.clientX - fpDrag.x) * .005;    // (drag the view, like the third-person camera)
+      fpPitch = THREE.MathUtils.clamp(fpPitch + (e.clientY - fpDrag.y) * .004, -1.1, 1);
+    }
     fpDrag.x = e.clientX; fpDrag.y = e.clientY;
   });
   addEventListener("pointerup", e => { if (fpDrag && e.pointerId === fpDrag.id) fpDrag = null; });
@@ -690,7 +702,11 @@ async function main() {
     const look = ui.lookDir();
     if (mode === "wardrobe") kidYaw += look.x * 2.2 * dt;
     else if (fpOn()) {
-      if (!ui.isModal()) { fpYaw -= look.x * 1.9 * dt; fpPitch = THREE.MathUtils.clamp(fpPitch + look.y * 1.1 * dt, -1.1, 1); }
+      if (ui.isModal()) {}
+      else if (mode === "machine") {
+        mAz = THREE.MathUtils.clamp(mAz + look.x * 1.1 * dt, -.95, .95); mH = THREE.MathUtils.clamp(mH + look.y * 1.6 * dt, -1, 1.6);
+        if (!tween) aimAtPrizes();
+      } else { fpYaw -= look.x * 1.9 * dt; fpPitch = THREE.MathUtils.clamp(fpPitch + look.y * 1.1 * dt, -1.1, 1); }
     } else if ((look.x || look.y) && !tween && !ui.isModal()) {
       const off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
       sph.theta = THREE.MathUtils.clamp(sph.theta - look.x * 1.9 * dt, controls.minAzimuthAngle, controls.maxAzimuthAngle);
