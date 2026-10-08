@@ -164,13 +164,16 @@ export function setMode(m) {
 }
 // wardrobe panel: rows of swatches for hood, top and bottom; the kid rebuilds live behind it
 const hex = c => "#" + c.toString(16).padStart(6, "0");
-export function openWardrobe(items, current, onPick) {
+// lockOf(kind, id): stars still needed for a locked item (0 = unlocked)
+export function openWardrobe(items, current, onPick, lockOf = () => 0) {
   for (const kind of ["face", "height", "hood", "hair", "top", "bottom"]) {
     const row = $("w-" + kind);
     row.innerHTML = items[kind].map(it =>
-      `<button class="sw ${current[kind] === it.id ? "on" : ""}" data-kind="${kind}" data-id="${it.id}">${it.color === undefined ? "" : `<i style="background:${hex(it.color)}"></i>`}<span>${it.name}</span></button>`).join("");
+      { const lk = lockOf(kind, it.id);
+        return `<button class="sw ${current[kind] === it.id ? "on" : ""} ${lk ? "locked" : ""}" data-kind="${kind}" data-id="${it.id}" ${lk ? `title="Unlocks at ${lk} stars"` : ""}>${it.color === undefined ? "" : `<i style="background:${hex(it.color)}"></i>`}<span>${it.name}</span>${lk ? `<small class="lk">🔒 ${lk}★</small>` : ""}</button>`; }).join("");
     row.onclick = e => {
       const b = e.target.closest(".sw"); if (!b) return;
+      if (b.classList.contains("locked")) { toast(`Earn ${lockOf(kind, b.dataset.id)} stars to unlock`); return; }
       row.querySelectorAll(".sw").forEach(x => x.classList.toggle("on", x === b));
       onPick(kind, b.dataset.id); b.blur();
     };
@@ -249,8 +252,8 @@ export function floatScore(text) {
   document.getElementById("hud").appendChild(el);
   setTimeout(() => el.remove(), 1300);
 }
-export function setGoals(list) {
-  $("goals").innerHTML = `<b>Goals <i class="fold">${goalsFolded ? "+" : "–"}</i></b>` + list.map(g => `<div class="goal ${g.done ? "done" : ""}"><i>${g.done ? "✔" : ""}</i><span>${g.text}</span></div>`).join("");
+export function setGoals(list, title = "Goals") {
+  $("goals").innerHTML = `<b>${title} <i class="fold">${goalsFolded ? "+" : "–"}</i></b>` + list.map(g => `<div class="goal ${g.done ? "done" : ""}"><i>${g.done ? "✔" : ""}</i><span>${g.text}</span></div>`).join("");
 }
 export function onMusic(toggle, on) {
   const b = $("mus");
@@ -310,11 +313,11 @@ function openCard(html, wide, onClose) {
   $("modal").classList.remove("hide");
   card.querySelector(".ok").addEventListener("click", () => { $("modal").classList.add("hide"); onClose && onClose(); }, { once: true });
 }
-export function showWin(p, count, onClose) {
-  openCard(`${count === 1 ? `<div class="rib">NEW!</div>` : ""}
-    <img class="big" src="${icons[p.key]}" alt="">
+export function showWin(p, count, onClose, shiny) {
+  openCard(`${shiny ? `<div class="rib shiny">✦ SHINY! ✦</div>` : count === 1 ? `<div class="rib">NEW!</div>` : ""}
+    <img class="big ${shiny ? "shine" : ""}" src="${icons[p.key]}" alt="">
     <h2>${p.name}</h2><div class="tier ${p.tier}">${p.tier}${count > 1 ? ` · x${count}` : ""}</div>
-    <p>${count === 1 ? "Added to your collection!" : "Another one for the shelf!"}</p><button class="ok">Yay!</button>`, false, onClose);
+    <p>${shiny ? "A rare sparkly one · triple stars!" : count === 1 ? "Added to your collection!" : "Another one for the shelf!"}</p><button class="ok">Yay!</button>`, false, onClose);
 }
 // big swap: 5 small friends from the cart become 1 big friend of your choice
 export function showSwap(smallCount, onPick) {
@@ -348,15 +351,42 @@ export function showControls(touch, onReplay, onClose) {
     <button class="replay" id="k-replay">Replay the tutorial</button><button class="ok">Close</button>`, true, onClose);
   $("k-replay").addEventListener("click", () => { $("modal").classList.add("hide"); onReplay(); });
 }
-export function showCollection(owned, onClose) {
-  const n = PLUSH.filter(p => owned[p.key]).length;
-  let html = `<h2>Collection</h2><p>${n} / 24 friends</p><div class="grid">`;
+export function showCollection(owned, onClose, shiny = {}) {
+  const n = PLUSH.filter(p => owned[p.key]).length, ns = PLUSH.filter(p => shiny[p.key]).length;
+  let html = `<h2>Collection</h2><p>${n} / 24 friends${ns ? ` · ✦ ${ns} shiny` : ""}</p><div class="cbar"><i style="width:${n / 24 * 100}%"></i></div><div class="grid">`;
   for (const s of SPECIES) {
-    html += `<div class="row">${s.machine}</div>`;
-    for (const p of PLUSH.filter(p => p.species === s.id)) {
+    const list = PLUSH.filter(p => p.species === s.id), k = list.filter(p => owned[p.key]).length;
+    html += `<div class="row">${s.machine} <span>${k === 6 ? "✔ set complete" : `${k}/6`}</span></div>`;
+    for (const p of list) {
       const c = owned[p.key] || 0;
-      html += `<div class="slot" title="${c ? p.name : "???"}">${img(p.key, !c)}${c > 1 ? `<i>x${c}</i>` : ""}</div>`;
+      html += `<div class="slot ${p.tier} ${shiny[p.key] ? "shiny" : ""}" title="${c ? `${p.name} · ${p.tier}` : `??? · ${p.tier}`}">${img(p.key, !c)}${c > 1 ? `<i>x${c}</i>` : ""}${shiny[p.key] ? `<em>✦</em>` : ""}</div>`;
     }
   }
   openCard(html + `</div><button class="ok">Close</button>`, true, onClose);
+}
+
+// a short line sliding in at the top (unlocks, finished requests); queued so none hides another
+const bannerQ = [];
+export function banner(text) {
+  bannerQ.push(text);
+  if (bannerQ.length > 1) return;
+  const next = () => {
+    const el = document.createElement("div");
+    el.className = "banner"; el.textContent = bannerQ[0];
+    $("hud").appendChild(el);
+    setTimeout(() => { el.remove(); bannerQ.shift(); if (bannerQ.length) next(); }, 2300);
+  };
+  next();
+}
+export function showDayDone(day, reward, nextDay, reqs, onClose) {
+  openCard(`<div class="rib">DAY ${day} DONE!</div><h2>Great work!</h2><p>All of today's requests are done.</p>
+    <div class="reward"><span>+${reward.coins} <small>coins</small></span><span>+${reward.stars} <small>stars</small></span></div>
+    <p class="next"><b>Day ${nextDay}</b> · ${reqs.map(r => r.text).join(" · ")}</p><button class="ok">Next day!</button>`, false, onClose);
+}
+export function showSetDone(sp, reward, onClose) {
+  openCard(`<div class="rib">SET COMPLETE</div><div class="setrow">${PLUSH.filter(p => p.species === sp.id).map(p => img(p.key, false)).join("")}</div>
+    <h2>All 6 ${sp.name}s!</h2><div class="reward"><span>+${reward.coins} <small>coins</small></span><span>+${reward.stars} <small>stars</small></span></div><button class="ok">Hooray!</button>`, true, onClose);
+}
+export function showUnlock(title, text, onClose) {
+  openCard(`<div class="rib">NEW!</div><h2>${title}</h2><p>${text}</p><button class="ok">Let's go!</button>`, false, onClose);
 }

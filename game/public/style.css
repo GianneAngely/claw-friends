@@ -243,3 +243,27 @@ body.titling #hud > *:not(#title):not(.modal):not(.loading):not(.toast) { displa
   .tlogo svg { width: 64px; height: 60px; }
 }
 @media (max-width: 600px) { #mus, #snd, #logo { display: none !important; } }   /* (phones: the volume lives in Pause > Settings; the row didn't fit) */
+
+/* ---- progression ---- */
+.sw.locked { background: #F2EEF5; }
+.sw.locked i, .sw.locked span { opacity: .45; }
+.sw .lk { font-size: 10px; font-weight: 700; color: #B0577F; }
+.banner { top: 78px; left: 50%; transform: translateX(-50%); padding: 8px 20px; background: var(--mint); border: 3px solid var(--ink); border-radius: 999px; box-shadow: var(--drop); font-weight: 700; font-size: 18px; white-space: nowrap; animation: banner 2.3s ease both; z-index: 5; }
+@keyframes banner { from { opacity: 0; transform: translate(-50%, -16px); } 12% { opacity: 1; transform: translate(-50%, 0); } 85% { opacity: 1; } to { opacity: 0; transform: translate(-50%, -8px); } }
+.reward { display: flex; justify-content: center; gap: 12px; margin: 10px 0; }
+.reward span { padding: 6px 16px; border-radius: 999px; background: #FFF4C2; border: 3px solid var(--ink); font-weight: 700; font-size: 22px; }
+.reward small { font-size: 14px; font-weight: 600; }
+.card .next { font-size: 14px; opacity: .8; }
+.setrow { display: flex; justify-content: center; gap: 2px; margin: 6px 0; }
+.setrow img { width: 70px; height: 66px; }
+.card .rib.shiny { background: linear-gradient(90deg, #FFD86B, #FF9AC9, #9FD8FF); }
+.card .big.shine { filter: drop-shadow(0 0 10px #FFE07A) saturate(1.25); animation: shine 1.6s ease-in-out infinite; }
+@keyframes shine { 50% { filter: drop-shadow(0 0 18px #FFF1A8) saturate(1.4) brightness(1.08); } }
+.cbar { height: 12px; margin: 4px 30px 4px; border: 3px solid var(--ink); border-radius: 999px; overflow: hidden; background: #fff; }
+.cbar i { display: block; height: 100%; background: var(--pink); }
+.grid .row span { font-weight: 600; font-size: 13px; opacity: .7; margin-left: 6px; }
+.grid .slot.uncommon { background: #EAF4FF; }
+.grid .slot.rare { background: #FFF4C2; }
+.grid .slot.shiny { box-shadow: inset 0 0 0 3px #FFD86B; }
+.grid .slot em { position: absolute; left: 4px; top: 0; font-style: normal; color: #E8A600; font-size: 14px; }
+.goal.head { font-weight: 700; margin-top: 4px; }
