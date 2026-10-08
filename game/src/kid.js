@@ -251,6 +251,8 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     const rest = { upper, fore, hand, upF: ortho(FWD, upper), foF: ortho(FWD, fore), haF: ortho(FWD, hand) };   // (the thumb is on the hand's front)
     ARM[s] = { rest, cur: { upper: V(g * .18, -1, .04), fore: V(g * .07, -1, .42), thumb: V(-g * .2, 0, 1) } };
   }
+  // the raised arm of the model's rest pose (the reference's wave): waving in that pose keeps its sleeve whole
+  const WAVE = ARM.L.rest.upper.y > ARM.R.rest.upper.y ? "L" : "R";
   const _qu = new THREE.Quaternion(), _qf = new THREE.Quaternion(), _qh = new THREE.Quaternion();
   // feet on the floor: a heel and a toe point under each foot, kept in the foot bone's space. Each frame the body is
   // set so the lowest of them touches the floor - the standing foot stays down and the walk's rise and fall comes
@@ -327,7 +329,11 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       for (const side of ["L", "R"]) {
         const g = side === "L" ? 1 : -1;
         let up, fo, th;
-        if (happy) {                                  // "yay!": fists up in front
+        if (pose === "wave" && side === WAVE) {      // hello! (the title screen): the reference's wave, hand swinging
+          // (the upper arm keeps its rest line; the forearm swings up from the elbow)
+          const w = Math.sin(t * 7) * .38;
+          up = ARM[side].rest.upper.clone(); fo = V(g * (.25 + w), 1, .25); th = V(-g * .3, 0, 1);
+        } else if (happy) {                                  // "yay!": fists up in front
           // (the upper arms stay down under the capelet - raised, the sleeves came out of it in broken pieces - and the
           // elbows bend only a little past square: folded up further, the forearms cut through the sleeves)
           const w = Math.sin(t * 14 + (g > 0 ? 0 : 1.5)) * .25;

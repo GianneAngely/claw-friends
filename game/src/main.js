@@ -15,6 +15,7 @@ import { makeKid, loadKid, DEFAULT_OUTFIT, HOODS, HAIRS, FACE_OPTS, HEIGHTS, TOP
 import * as ui from "./ui.js";
 import * as store from "./save.js";
 import * as audio from "./sfx.js";
+import * as settings from "./settings.js";
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.get("test");
@@ -51,19 +52,30 @@ function makeIcons() {
 
 async function main() {
   ui.init();
-  audio.init();
+  // the title screen comes first unless a test or a debug view asks for the game (or "new game" reloaded into it)
+  let autoplay = false;
+  try { autoplay = sessionStorage.getItem("cf-autoplay") === "1"; sessionStorage.removeItem("cf-autoplay"); } catch {}
+  const TITLE = !TEST && !Q.has("play") && !Q.has("at") && !Q.has("cam") && !autoplay;
+  audio.init(!TITLE);
   ui.onMute(() => audio.toggleMute(), audio.isMuted());
   ui.onMusic(() => audio.toggleMusic(), audio.isMusicOn());
+  let S = settings.get();
+  audio.setVolumes(S.music, S.sfx);
+  ui.loading(.1, "Waking up the arcade…");
   await document.fonts.load("700 40px Fredoka");
+  ui.loading(.25, "Oiling the claws…");
   await RAPIER.init();
+  ui.loading(.45, "Kyoko is getting dressed…");
   await loadKid();
+  ui.loading(.6, "Stacking the plushies…");
+  await new Promise(r => setTimeout(r, 30));   // (lets the bar paint before the long synchronous build)
   if (Q.has("fresh")) store.save({});
   const save = store.load();
 
   // ---------- renderer ----------
   const canvas = document.getElementById("c");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(S.quality === "low" ? 1 : Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   const scene = new THREE.Scene();
@@ -75,11 +87,11 @@ async function main() {
   const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .22, .35, 1.04);
-  composer.addPass(bloom);
+  composer.addPass(bloom); bloom.enabled = S.quality !== "low";
   composer.addPass(new OutputPass());
   scene.add(new THREE.HemisphereLight(0xFFFFFF, 0xE2D4F4, 2.2));
   const sun = new THREE.DirectionalLight(0xFFFFFF, 1.5);
-  sun.castShadow = true;
+  sun.castShadow = S.quality !== "low";
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -19, right: 19, top: 19, bottom: -19, near: 1, far: 90 });
   sun.shadow.bias = -.0008; sun.shadow.normalBias = .03; sun.shadow.intensity = .45;
@@ -203,7 +215,7 @@ async function main() {
 
   // ---------- camera ----------
   const controls = new OrbitControls(camera, canvas);
-  Object.assign(controls, { enableDamping: true, dampingFactor: .1, enablePan: false, minDistance: 8, maxDistance: 30, minPolarAngle: .3, maxPolarAngle: 1.3 });
+  Object.assign(controls, { enableDamping: true, dampingFactor: .1, enablePan: false, minDistance: 8, maxDistance: 30, minPolarAngle: .3, maxPolarAngle: 1.3, rotateSpeed: S.sens });
   const at = (Q.get("at") || "").split(",").map(Number);
   if (at.length === 2 && at.every(Number.isFinite)) { START.x = at[0]; START.z = at[1]; kid.root.position.set(START.x, 0, START.z); kidBody.setTranslation({ x: START.x, y: KID_Y, z: START.z }, true); }
   controls.target.set(START.x, 3.4, START.z);
@@ -213,7 +225,7 @@ async function main() {
   function tweenTo(pos, tgt, dur = .8) { tween = { t: 0, dur, p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: tgt }; controls.enabled = false; }
   const fwd = new THREE.Vector3(), right = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
   function camAxes() { camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize(); right.crossVectors(fwd, UP).normalize(); }
-  let mode = "walk", active = null;
+  let mode = TITLE ? "title" : "walk", active = null;
   // first-person view (V / the eye button): the camera at Kyoko's eyes, walking and playing, her body hidden (the
   // cart stays). At a machine the eyes are in front of the glass, a little higher than hers (from her height the
   // prize pile hid the floor)
@@ -266,6 +278,7 @@ async function main() {
   resize(); addEventListener("resize", resize);
 
   // ---------- UI data ----------
+  ui.loading(.85, "Painting the prize icons…");
   ui.setIcons(makeIcons());
   ui.setCoins(save.coins); ui.setScore(save.score);
   const persist = () => store.save(save);
@@ -435,11 +448,11 @@ async function main() {
   addEventListener("pointermove", e => {
     if (!fpDrag || e.pointerId !== fpDrag.id || !fpOn()) return;
     if (mode === "machine") {                  // (drag the view: she steps the other way)
-      mAz = THREE.MathUtils.clamp(mAz - (e.clientX - fpDrag.x) * .004, -.95, .95);
-      mH = THREE.MathUtils.clamp(mH + (e.clientY - fpDrag.y) * .006, -1, 1.6);
+      mAz = THREE.MathUtils.clamp(mAz - (e.clientX - fpDrag.x) * .004 * S.sens, -.95, .95);
+      mH = THREE.MathUtils.clamp(mH + (e.clientY - fpDrag.y) * .006 * S.sens, -1, 1.6);
     } else {
-      fpYaw += (e.clientX - fpDrag.x) * .005;    // (drag the view, like the third-person camera)
-      fpPitch = THREE.MathUtils.clamp(fpPitch + (e.clientY - fpDrag.y) * .004, -1.1, 1);
+      fpYaw += (e.clientX - fpDrag.x) * .005 * S.sens;    // (drag the view, like the third-person camera)
+      fpPitch = THREE.MathUtils.clamp(fpPitch + (e.clientY - fpDrag.y) * .004 * S.sens, -1.1, 1);
     }
     fpDrag.x = e.clientX; fpDrag.y = e.clientY;
   });
@@ -553,6 +566,7 @@ async function main() {
     if (ev.wardrobe) openWardrobe();
     if (ev.hideCart && !ui.isModal()) toggleCart();
     if (ev.view && !ui.isModal() && !tween) setFirstPerson(!fp);
+    if (ev.back && !ui.isModal()) pause();
   }
   function machineStep(dt, ev) {
     const g = active;
@@ -617,7 +631,8 @@ async function main() {
     }[TUT[tut.i].id]();
     if (done) tutGo(tut.i + 1);
   }
-  if (!save.tutorial && !TEST) tutGo(0);
+  const startTutorial = () => { if (!save.tutorial && !TEST) tutGo(0); };
+  if (!TITLE) startTutorial();
 
   // ---------- loop ----------
   let last = performance.now(), accum = 0, frames = 0;
@@ -648,6 +663,45 @@ async function main() {
     }, 800);
   }
   if (TEST === "wardrobe") openWardrobe();
+
+  // ---------- title screen, pause, settings ----------
+  let paused = false, titleT = 0;
+  function applySettings(patch) {
+    S = settings.set(patch);
+    audio.setVolumes(S.music, S.sfx);
+    controls.rotateSpeed = S.sens;
+    if ("quality" in patch) {
+      const low = S.quality === "low";
+      renderer.setPixelRatio(low ? 1 : Math.min(devicePixelRatio, 2)); sun.castShadow = !low; bloom.enabled = !low;
+      scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); });   // (shadows on / off recompile)
+      resize();
+    }
+  }
+  function restart(play) { try { if (play) sessionStorage.setItem("cf-autoplay", "1"); } catch {} location.reload(); }
+  const resetProgress = () => { store.save({}); restart(true); };
+  const openSettings = back => ui.showSettings(S, applySettings, resetProgress, back);
+  function pause() { if (paused || ui.isModal() || tween) return; paused = true; pauseMenu(); }
+  function pauseMenu() {
+    ui.showPause({
+      resume: () => { paused = false; }, settings: () => openSettings(pauseMenu),
+      keys: () => ui.showControls(TOUCH, () => { paused = false; tutGo(0); }, pauseMenu), title: () => restart(false),
+    });
+  }
+  function play() {
+    audio.start();
+    ui.hideTitle(); mode = "walk"; ui.setMode("walk");
+    kidYaw = Math.PI; kid.root.rotation.y = kidYaw; kidPrev.yaw = kidCur.yaw = kidYaw;
+    if (cart.attached) cart.obj.root.visible = !cart.hidden;
+    const p = kid.root.position;
+    tweenTo(new THREE.Vector3(p.x, 10.9, p.z + 17.5), new THREE.Vector3(p.x, 3.4, p.z), 1.4);
+    startTutorial();
+  }
+  if (TITLE) {
+    controls.enabled = false;
+    kidYaw = 0; kid.root.rotation.y = 0; cart.obj.root.visible = false;
+    const hasSave = save.wins > 0 || save.tutorial || save.hasCart || save.score > 0;
+    ui.showTitle(hasSave, { play, cont: play, fresh: resetProgress, settings: () => openSettings(), credits: () => ui.showCredits() });
+  }
   ui.ready();
   const frame = now => {
     const dt = Math.max(0, Math.min(.1, (now - last) / 1000)); last = now;   // rAF clocks can start behind performance.now()
@@ -656,6 +710,8 @@ async function main() {
     else { accum += dt; while (accum >= STEP && steps < 4) { accum -= STEP; steps++; } accum = Math.min(accum, STEP); }   // (a long hitch is dropped, not caught up later)
     const ev = steps > 0 ? ui.consume() : {};   // presses wait for the next physics step instead of being dropped
     if (ev.keys && !ui.isModal()) ui.showControls(TOUCH, () => tutGo(0));
+    if (ev.pause && (mode === "walk" || mode === "machine")) pause();
+    if (paused) steps = 0;
     if (window.FREEZE) {
       steps = 0;
       if (!window.FROZEN) {
@@ -673,7 +729,7 @@ async function main() {
       const e = i === 0 ? ev : {};
       if (mode === "walk") walkStep(STEP, e);
       else if (mode === "machine") machineStep(STEP, e);
-      else if (e.back && !tween) closeWardrobe();
+      else if (mode === "wardrobe" && e.back && !tween) closeWardrobe();
       world.step();
       for (const g of games) g.after(STEP);
       const t = kidBody.translation();
@@ -692,10 +748,10 @@ async function main() {
       updatePrompt();
     }
     if (mode === "wardrobe") kid.root.rotation.y = kidYaw;
-    stepFlights(dt);
+    stepFlights(paused ? 0 : dt);
     cashierNpc.animate(dt, 0); swapNpc.animate(dt, 0);
     room.update(dt, kid.root.position, camera.position);
-    kid.animate(dt, mode === "walk" ? kidSpeed : 0, mode === "machine" ? "reach" : cart.attached && !cart.hidden && mode === "walk" ? "push" : "walk");
+    kid.animate(dt, mode === "walk" ? kidSpeed : 0, mode === "title" ? "wave" : mode === "machine" ? "reach" : cart.attached && !cart.hidden && mode === "walk" ? "push" : "walk");
     tutTick(dt);
     audio.levels(active ? active.motor : 0, active ? active.winch : 0);
     if (active) { grabPress = Math.max(0, grabPress - dt * 4); active.m.pressGrab(grabPress); }
@@ -704,15 +760,22 @@ async function main() {
     else if (fpOn()) {
       if (ui.isModal()) {}
       else if (mode === "machine") {
-        mAz = THREE.MathUtils.clamp(mAz + look.x * 1.1 * dt, -.95, .95); mH = THREE.MathUtils.clamp(mH + look.y * 1.6 * dt, -1, 1.6);
+        mAz = THREE.MathUtils.clamp(mAz + look.x * 1.1 * S.sens * dt, -.95, .95); mH = THREE.MathUtils.clamp(mH + look.y * 1.6 * S.sens * dt, -1, 1.6);
         if (!tween) aimAtPrizes();
-      } else { fpYaw -= look.x * 1.9 * dt; fpPitch = THREE.MathUtils.clamp(fpPitch + look.y * 1.1 * dt, -1.1, 1); }
+      } else { fpYaw -= look.x * 1.9 * S.sens * dt; fpPitch = THREE.MathUtils.clamp(fpPitch + look.y * 1.1 * S.sens * dt, -1.1, 1); }
     } else if ((look.x || look.y) && !tween && !ui.isModal()) {
       const off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
-      sph.theta = THREE.MathUtils.clamp(sph.theta - look.x * 1.9 * dt, controls.minAzimuthAngle, controls.maxAzimuthAngle);
-      sph.phi = THREE.MathUtils.clamp(sph.phi + look.y * 1.1 * dt, controls.minPolarAngle, controls.maxPolarAngle);
+      sph.theta = THREE.MathUtils.clamp(sph.theta - look.x * 1.9 * S.sens * dt, controls.minAzimuthAngle, controls.maxAzimuthAngle);
+      sph.phi = THREE.MathUtils.clamp(sph.phi + look.y * 1.1 * S.sens * dt, controls.minPolarAngle, controls.maxPolarAngle);
       sph.makeSafe();
       camera.position.copy(controls.target).add(off.setFromSpherical(sph));
+    }
+    if (mode === "title") {                           // the title screen: Kyoko waves by the door, the camera drifts
+      titleT += dt;
+      const a = .5 * Math.sin(titleT * .18), p = kid.root.position, port = camera.aspect < 1;
+      const rgt = new THREE.Vector3(Math.cos(a), 0, -Math.sin(a));
+      camera.position.set(p.x + Math.sin(a) * 9.5, 4.4, p.z + Math.cos(a) * 9.5);
+      controls.target.copy(p).add(new THREE.Vector3(0, port ? .6 : 2.5, 0)).addScaledVector(rgt, port ? 0 : -2.6);
     }
     if (tween) {
       tween.t += dt / tween.dur;
