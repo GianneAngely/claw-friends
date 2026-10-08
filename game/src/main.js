@@ -214,18 +214,27 @@ async function main() {
   const fwd = new THREE.Vector3(), right = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
   function camAxes() { camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize(); right.crossVectors(fwd, UP).normalize(); }
   let mode = "walk", active = null;
-  // first-person view (V / the eye button): the camera at Kyoko's eyes while walking, her body hidden (the cart stays)
+  // first-person view (V / the eye button): the camera at Kyoko's eyes, walking and playing, her body hidden (the
+  // cart stays). At a machine the eyes are in front of the glass, a little higher than hers (from her height the
+  // prize pile hid the floor)
   let fp = false, fpYaw = 0, fpPitch = -.12, kidHidden = false;
   const EYE = 3.6;
-  const fpEye = () => kid.root.position.clone().add(new THREE.Vector3(0, EYE, 0));
+  const fpEye = () => {
+    if (mode === "machine" && active) { const e = active.toW(.4, 4.7, 5); return new THREE.Vector3(e.x, e.y, e.z); }
+    return kid.root.position.clone().add(new THREE.Vector3(0, EYE, 0));
+  };
   const fpLook = () => fpEye().add(new THREE.Vector3(Math.sin(fpYaw) * Math.cos(fpPitch), Math.sin(fpPitch), Math.cos(fpYaw) * Math.cos(fpPitch)).multiplyScalar(6));
-  const fpOn = () => fp && mode === "walk";
+  const fpOn = () => fp && (mode === "walk" || mode === "machine");
   function setFirstPerson(on) {
     fp = on;
     const p = kid.root.position;
     if (on) {
-      fpYaw = Math.atan2(controls.target.x - camera.position.x, controls.target.z - camera.position.z); fpPitch = -.12;
-      tweenTo(fpEye(), fpLook(), .5);
+      const e = fpEye(), d = controls.target.clone().sub(mode === "machine" ? e : camera.position);
+      fpYaw = Math.atan2(d.x, d.z); fpPitch = mode === "machine" ? Math.asin(d.y / d.length()) : -.12;
+      tweenTo(e, fpLook(), .5);
+    } else if (mode === "machine") {
+      const c = active.toW(0, camera.aspect < 1 ? 6.4 : 6.8, 11.2), t = active.toW(0, camera.aspect < 1 ? 4.3 : 4.7, 0);
+      tweenTo(new THREE.Vector3(c.x, c.y, c.z), new THREE.Vector3(t.x, t.y, t.z), .5);
     } else {
       const d = new THREE.Vector3(Math.sin(fpYaw), 0, Math.cos(fpYaw));
       tweenTo(new THREE.Vector3(p.x - d.x * 17.5, 10.9, p.z - d.z * 17.5), new THREE.Vector3(p.x, 3.4, p.z), .5);
@@ -234,7 +243,7 @@ async function main() {
   }
   function setView() {
     const port = camera.aspect < 1, m = mode === "machine";
-    camera.fov = m ? (port ? 70 : 50) : fpOn() ? (port ? 80 : 68) : (port ? 58 : 40); camera.updateProjectionMatrix();
+    camera.fov = fpOn() ? (port ? 80 : 68) : m ? (port ? 70 : 50) : (port ? 58 : 40); camera.updateProjectionMatrix();
     Object.assign(controls, m
       ? { minDistance: 7, maxDistance: 11.6, minAzimuthAngle: active.place.yaw - 1.0, maxAzimuthAngle: active.place.yaw + 1.0 }
       : { minDistance: 8, maxDistance: 30, minAzimuthAngle: -Infinity, maxAzimuthAngle: Infinity });
@@ -329,7 +338,11 @@ async function main() {
     setView();
     const port = camera.aspect < 1;
     const c = g.toW(0, port ? 6.4 : 6.8, 11.2), t = g.toW(0, port ? 4.3 : 4.7, 0);
-    tweenTo(new THREE.Vector3(c.x, c.y, c.z), new THREE.Vector3(t.x, t.y, t.z));
+    if (fp) {                                       // looking at the prizes through the glass
+      const e = fpEye(), l = g.toW(0, 3.4, 0), d = new THREE.Vector3(l.x - e.x, l.y - e.y, l.z - e.z);
+      fpYaw = Math.atan2(d.x, d.z); fpPitch = Math.asin(d.y / d.length());
+      tweenTo(e, fpLook());
+    } else tweenTo(new THREE.Vector3(c.x, c.y, c.z), new THREE.Vector3(t.x, t.y, t.z));
     startRound();
   }
   function exitMachine() {
@@ -532,6 +545,7 @@ async function main() {
   function machineStep(dt, ev) {
     const g = active;
     if (ev.back && !ui.isModal()) return exitMachine();
+    if (ev.view && !ui.isModal() && !tween) setFirstPerson(!fp);
     let inp;
     if (TEST === "claw") inp = autopilot();
     else {
