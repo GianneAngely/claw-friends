@@ -11,6 +11,8 @@ import faceBlink from "../assets/kyoko_face_blink.png";
 import faceHappy from "../assets/kyoko_face_happy.png";
 import faceSad from "../assets/kyoko_face_sad.png";
 import faceWow from "../assets/kyoko_face_wow.png";
+import facePout from "../assets/kyoko_face_pout.png";
+import faceWink from "../assets/kyoko_face_wink.png";
 import hairPng from "../assets/kyoko_hair.png";
 import { toonFlat, toonTex, toonHair, flat, outline, outlineSkinned, outlineMatFor } from "./gfx.js";
 
@@ -44,12 +46,17 @@ export const BOTTOMS = [
   { id: "denim", name: "Denim", color: 0x6F8FC6 },
   { id: "brown", name: "Brown", color: 0x8C5B3D },
 ];
-export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red" };
+// her resting face (the opsi-ekspresi sheet, E1-E6); game events still flash happy / sad / wow over it
+export const FACE_OPTS = [
+  { id: "idle", name: "Sly" }, { id: "happy", name: "Happy" }, { id: "wow", name: "Surprised" },
+  { id: "sad", name: "Crying" }, { id: "pout", name: "Pout" }, { id: "wink", name: "Wink" },
+];
+export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red", face: "idle" };
 const pick = (list, id) => list.find(x => x.id === id) || list[0];
 // outfit ids (+ base: hair / hood colour overrides for the staff) -> the colours makeKid paints
 export function dress(outfit = DEFAULT_OUTFIT, base = BASE) {
   const h = pick(HOODS, outfit.hood), t = pick(TOPS, outfit.top), b = pick(BOTTOMS, outfit.bottom);
-  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
+  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, face: pick(FACE_OPTS, outfit.face).id, hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
 }
 
 const SKIN = 0xF8E5D6, INK = 0x2A1F2E;
@@ -84,7 +91,7 @@ export async function loadKid() {
   const buf = kyokoGlb.buffer.slice(kyokoGlb.byteOffset, kyokoGlb.byteOffset + kyokoGlb.byteLength);
   TEMPLATE = (await new GLTFLoader().parseAsync(buf, "")).scene;
   const loader = new THREE.TextureLoader();
-  await Promise.all(Object.entries({ idle: faceIdle, blink: faceBlink, happy: faceHappy, sad: faceSad, wow: faceWow }).map(async ([k, url]) => {
+  await Promise.all(Object.entries({ idle: faceIdle, blink: faceBlink, happy: faceHappy, sad: faceSad, wow: faceWow, pout: facePout, wink: faceWink }).map(async ([k, url]) => {
     const t = await loader.loadAsync(url);
     t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;   // glTF UV convention
     FACES[k] = t;
@@ -262,7 +269,7 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
   const lerpV = (a, b, t) => a.clone().lerp(b, t).normalize();
 
   // ---------- animation state ----------
-  let phase = 0, amt = 0, t = 0, prevBob = 0, bobVel = 0, prevYaw = null, yawRateS = 0, turnS = 0, expr = "idle", exprT = 0, blinkT = 2 + Math.random() * 3;
+  let phase = 0, amt = 0, t = 0, prevBob = 0, bobVel = 0, prevYaw = null, yawRateS = 0, turnS = 0, expr = ch.face, exprT = 0, blinkT = 2 + Math.random() * 3;
   const sp = { ear: { a: 0, v: 0 }, hair: { a: 0, v: 0 }, hairZ: { a: 0, v: 0 }, braid: { a: 0, v: 0 }, cape: { a: 0, v: 0 }, capeZ: { a: 0, v: 0 }, flare: { a: 0, v: 0 } };
   const setMap = name => { const m = FACES[name]; if (faceMat.map !== m) { faceMat.map = m; faceMat.needsUpdate = true; } };
 
@@ -293,7 +300,7 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       }
       // body: lowest just after a foot lands, highest over the standing foot, leaning over it (a little chibi waddle);
       // the pelvis turns with the forward leg and the shoulders turn the other way, the head stays facing ahead
-      const happy = expr === "happy", sad = expr === "sad";
+      const happy = expr === "happy" && exprT > 0, sad = expr === "sad" && exprT > 0;   // (poses only for the flashes, not a resting face)
       const hop = happy ? Math.abs(Math.sin(t * 8.5)) * .22 : 0;
       const bN = (1 - Math.cos(2 * TAU * (pL - .07))) / 2;
       turnS += (THREE.MathUtils.clamp(-yawRate * .012, -.04, .04) * amt - turnS) * Math.min(1, dt * 8);   // eases into turns
@@ -357,11 +364,11 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       rot("cape_L", "x", cape * .6 - .07 * Math.sin(TAU * pL) * amt); rot("cape_L", "z", (capeZ + hem) * .6 + flare * .3);
       rot("cape_R", "x", cape * .6 - .07 * Math.sin(TAU * pR) * amt); rot("cape_R", "z", (capeZ + hem) * .6 - flare * .3);
       // face: expression timer and blinking
-      if (exprT > 0) { exprT -= dt; if (exprT <= 0) expr = "idle"; }
+      if (exprT > 0) { exprT -= dt; if (exprT <= 0) expr = ch.face; }
       blinkT -= dt;
       const blinking = blinkT < 0 && blinkT > -.13;
       if (blinkT < -.13) blinkT = 2 + Math.random() * 3.5;
-      setMap(expr !== "idle" ? expr : blinking ? "blink" : "idle");
+      setMap(expr === "idle" && blinking ? "blink" : expr);   // (only the sly face has a blink drawn)
       apply();
       // the lowest heel or toe on the floor, then the happy hop on top
       model.updateMatrixWorld(true);

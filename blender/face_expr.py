@@ -5,9 +5,9 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
-B = "/Users/gianneangely/Documents/ClawFriends/blender"
-OUT = "/Users/gianneangely/Documents/ClawFriends/game/assets"
-REF = "/Users/gianneangely/Documents/ClawFriends/refs/character/kyoko-base-flow.png"
+B = "/Users/gianneangely/Documents/Projects/ClawFriends/blender"
+OUT = "/Users/gianneangely/Documents/Projects/ClawFriends/game/assets"
+REF = "/Users/gianneangely/Documents/Projects/ClawFriends/refs/character/kyoko-base-flow.png"
 X0, Y0, SC = 150, 170, 3          # FACE_BOX origin in the reference, texture scale
 INK, MOUTH, TONGUE = (22, 14, 18, 255), (150, 52, 62, 255), (235, 163, 158, 255)
 
@@ -27,7 +27,7 @@ def eye_erase(c):
     ys, xs = np.nonzero(c)
     near = box(xs.min() - 4, ys.min() - 3, xs.max() + 4, ys.max() + 4)
     return ndimage.binary_dilation(c | (white & near & ndimage.binary_dilation(c, iterations=6)), iterations=2)
-ERASE = {"eyes": eye_erase(EYE_L) | eye_erase(EYE_R),
+ERASE = {"eyes": eye_erase(EYE_L) | eye_erase(EYE_R), "eyeL": eye_erase(EYE_L),
          "mouth": ((Xr - 288.5) / 47) ** 2 + ((Yr - 338.5) / 22) ** 2 <= 1}        # the whole grin (outline, tongue, fang)
 
 def erased(parts):
@@ -77,13 +77,26 @@ def wow(curve, ell, d, P, k):
     ell(288, 341, 10, 12, MOUTH, INK, 3.2)
     ell(288, 347, 6, 4, TONGUE)
 
-VARIANTS = {"blink": (["eyes"], blink), "happy": (["eyes"], happy), "sad": (["eyes", "mouth"], sad), "wow": (["eyes", "mouth"], wow)}
+def pout(curve, ell, d, P, k):
+    # "hmph": cross brows over her own eyes, cheeks puffed (more blush), lips pushed into a small wavy line
+    curve((190, 252), (215, 256), (240, 264), 4.5); curve((334, 260), (358, 252), (384, 248), 4.5)
+    for cx in (215, 362): ell(cx, 312, 24, 12, (240, 140, 150, 110))
+    pts = [(274 + i * 4.7, 340 + (3 if i % 2 else -1)) for i in range(7)]
+    d.line([P(*q) for q in pts], fill=INK, width=int(3.5 * k), joint="curve")
+def wink(curve, ell, d, P, k):
+    # one eye shut in a smile, a grin with the tongue out
+    curve((183, 284), (212, 264), (243, 284), 5)
+    curve((262, 332), (288, 350), (314, 332), 4.5)
+    ell(292, 349, 9, 10, TONGUE, INK, 2.6)
+    curve((292, 343), (292, 349), (292, 354), 1.6)
+
+VARIANTS = {"blink": (["eyes"], blink), "happy": (["eyes"], happy), "sad": (["eyes", "mouth"], sad), "wow": (["eyes", "mouth"], wow), "pout": (["mouth"], pout), "wink": (["eyeL", "mouth"], wink)}
 base.save(f"{OUT}/kyoko_face_idle.png")
-sheet = Image.new("RGBA", (W * 5, H), (248, 229, 214, 255))
+sheet = Image.new("RGBA", (W * 7, H), (248, 229, 214, 255))
 sheet.alpha_composite(base, (0, 0))
 for i, (name, (parts, fn)) in enumerate(VARIANTS.items(), start=1):
     img = erased(parts); img.alpha_composite(ink_layer(fn))
     img.save(f"{OUT}/kyoko_face_{name}.png")
     sheet.alpha_composite(img, (W * i, 0))
-sheet.convert("RGB").resize((W * 5 // 3, H // 3), Image.LANCZOS).save(f"{B}/face_expr_sheet.png")
+sheet.convert("RGB").resize((W * 7 // 3, H // 3), Image.LANCZOS).save(f"{B}/face_expr_sheet.png")
 print("faces", W, H)
