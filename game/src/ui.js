@@ -161,7 +161,7 @@ export function setMode(m) {
 // wardrobe panel: rows of swatches for hood, top and bottom; the kid rebuilds live behind it
 const hex = c => "#" + c.toString(16).padStart(6, "0");
 export function openWardrobe(items, current, onPick) {
-  for (const kind of ["face", "hood", "hair", "top", "bottom"]) {
+  for (const kind of ["face", "height", "hood", "hair", "top", "bottom"]) {
     const row = $("w-" + kind);
     row.innerHTML = items[kind].map(it =>
       `<button class="sw ${current[kind] === it.id ? "on" : ""}" data-kind="${kind}" data-id="${it.id}">${it.color === undefined ? "" : `<i style="background:${hex(it.color)}"></i>`}<span>${it.name}</span></button>`).join("");
