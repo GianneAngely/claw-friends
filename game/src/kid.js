@@ -12,11 +12,15 @@ import faceHappy from "../assets/kyoko_face_happy.png";
 import faceSad from "../assets/kyoko_face_sad.png";
 import faceWow from "../assets/kyoko_face_wow.png";
 import hairPng from "../assets/kyoko_hair.png";
-import { toonFlat, toonTex, flat, outlineSkinned } from "./gfx.js";
+import { toonFlat, toonTex, flat, outline, outlineSkinned, outlineMatFor } from "./gfx.js";
 
-export const BASE = { hair: 0xA32858, hoodColor: 0xC7C7D0 };
+export const BASE = { hair: 0xA32858 };   // (hoodColor: overrides the hood's own colour, for the staff)
 // wardrobe: the tee and the shorts come in the six colour sets W1..W6 (mix and match)
-export const HOODS = [{ id: "koala", name: "Koala", color: 0xC7C7D0 }];
+export const HOODS = [
+  { id: "koala", name: "Koala", color: 0xC7C7D0 }, { id: "cat", name: "Cat", color: 0xF4C08E },
+  { id: "bunny", name: "Bunny", color: 0xF6F1F4 }, { id: "bear", name: "Bear", color: 0xB98A66 },
+  { id: "frog", name: "Frog", color: 0x9AD68A },
+];
 export const TOPS = [
   { id: "navy", name: "Navy", color: 0x3F4575 },
   { id: "pink", name: "Pink", color: 0xF7B6CF },
@@ -52,6 +56,16 @@ function palette(ch) {
     Hood: [hood, .28], HoodInner: [darker(hood, .7), .4], EarInner: [lighter(hood, .3), .5], Nose: [0x38373B, .4],   // flat like the drawing
     Collar: [hood, .35], Button: [darker(hood, .96), .4], Glove: [SKIN, .3],   // bare hands
   };
+}
+
+// hull outline in her exact ink, for the hood's extra parts (plain meshes)
+let INK_LINE_MAT = null;
+function inkLine() {
+  if (!INK_LINE_MAT) {
+    const m = outlineMatFor(INK);
+    INK_LINE_MAT = m.clone(); INK_LINE_MAT.uniforms = { ...m.uniforms, color: { value: new THREE.Color(INK) } };
+  }
+  return INK_LINE_MAT;
 }
 
 // ---------- model ----------
@@ -139,6 +153,43 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     const [color, shade] = pal[name] || [0xFF00FF, .8];
     m.material = toonFlat(color, shade);
     outlineSkinned(m, color, INK);
+  }
+
+  // ---------- the hood's animal: the model has the koala's ears and nose; other animals swap in their own (on the ear
+  // bones, so they bounce like the koala's), sized and placed from the koala parts, her rest pose = character space
+  if (ch.hood !== "koala") {
+    root.traverse(o => { if (/^(Ear|EarIn|KoalaNose)/.test(o.name) || (ch.hood === "frog" && o.name.startsWith("KoalaEye"))) o.visible = false; });
+    const bone = n => skeleton.getBoneByName(n);
+    const PINK = 0xF7B3C8, hood = ch.hoodColor, INK_LINE = inkLine();
+    const part = (geo, color, shade, [x, y, z], [sx, sy, sz], rz, parent, lined = true) => {
+      const m = new THREE.Mesh(geo, toonFlat(color, shade));
+      m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.z = rz;
+      if (lined) { outline(m); m.children[0].material = INK_LINE; }   // (the same ink as her other outlines)
+      parent.attach(m);
+      return m;
+    };
+    const ball = new THREE.SphereGeometry(1, 32, 16), cone = new THREE.ConeGeometry(1, 1, 32);
+    const nose = (color, s) => part(ball, color, .4, [-.02, 3.12, .37], s, 0, bone("head"));
+    for (const g of [1, -1]) {
+      const ear = bone(g > 0 ? "ear_L" : "ear_R");
+      if (ch.hood === "cat") {
+        part(cone, hood, .28, [g * .68, 3.32, -.05], [.3, .55, .18], -g * .38, ear);
+        part(cone, PINK, .5, [g * .66, 3.27, .05], [.17, .36, .08], -g * .38, ear, false);
+      } else if (ch.hood === "bunny") {
+        part(ball, hood, .28, [g * .42, 3.75, -.05], [.2, .62, .13], -g * .14, ear);
+        part(ball, PINK, .5, [g * .42, 3.72, .05], [.1, .46, .06], -g * .14, ear, false);
+      } else if (ch.hood === "bear") {
+        part(ball, hood, .28, [g * .82, 3.15, -.05], [.3, .3, .14], 0, ear);
+        part(ball, darker(hood, .75), .5, [g * .82, 3.15, .06], [.17, .17, .06], 0, ear, false);
+      } else if (ch.hood === "frog") {
+        part(ball, hood, .28, [g * .5, 3.3, .02], [.3, .3, .26], 0, bone("head"));
+        part(ball, 0xFFFFFF, .3, [g * .5, 3.32, .22], [.2, .2, .1], 0, bone("head"), false);
+        part(ball, 0x2A1F2E, .2, [g * .5, 3.32, .3], [.09, .1, .05], 0, bone("head"), false);
+      }
+    }
+    if (ch.hood === "cat") nose(PINK, [.07, .05, .04]);
+    else if (ch.hood === "bunny") nose(PINK, [.06, .045, .04]);
+    else if (ch.hood === "bear") { part(ball, lighter(hood, .45), .3, [-.02, 3.06, .34], [.24, .16, .07], 0, bone("head")); nose(0x38373B, [.08, .06, .05]); }
   }
 
   // ---------- rig: rotations are given in character space (x = her left, y = up, z = forward) ----------
