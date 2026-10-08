@@ -267,3 +267,9 @@ body.titling #hud > *:not(#title):not(.modal):not(.loading):not(.toast) { displa
 .grid .slot.shiny { box-shadow: inset 0 0 0 3px #FFD86B; }
 .grid .slot em { position: absolute; left: 4px; top: 0; font-style: normal; color: #E8A600; font-size: 14px; }
 .goal.head { font-weight: 700; margin-top: 4px; }
+
+/* ---- juice ---- */
+.pill.bump { animation: bump .35s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes bump { 40% { transform: scale(1.18); } }
+.conf { position: absolute; top: -20px; width: 10px; height: 16px; border-radius: 3px; border: 2px solid var(--ink); transform: scale(var(--s)); animation: conf var(--d) cubic-bezier(.25, .5, .5, 1) forwards; pointer-events: none; }
+@keyframes conf { to { transform: translate(var(--x), 105vh) rotate(var(--r)) scale(var(--s)); } }
