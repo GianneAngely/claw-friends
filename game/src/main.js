@@ -223,7 +223,7 @@ async function main() {
   let mAz = 0, mH = 0;
   const EYE = 3.6;
   const fpEye = () => {
-    if (mode === "machine" && active) { const e = active.toW(5 * Math.sin(mAz), 4.7 + mH, 5 * Math.cos(mAz)); return new THREE.Vector3(e.x, e.y, e.z); }
+    if (mode === "machine" && active) { const e = active.toW(5 * Math.sin(mAz), 4.7 + EYE * (kid.height - 1) + mH, 5 * Math.cos(mAz)); return new THREE.Vector3(e.x, e.y, e.z); }
     return kid.root.position.clone().add(new THREE.Vector3(0, EYE * kid.height, 0));   // (her eyes at her size)
   };
   const fpLook = () => fpEye().add(new THREE.Vector3(Math.sin(fpYaw) * Math.cos(fpPitch), Math.sin(fpPitch), Math.cos(fpYaw) * Math.cos(fpPitch)).multiplyScalar(6));
@@ -240,7 +240,7 @@ async function main() {
       fpYaw = Math.atan2(d.x, d.z); fpPitch = mode === "machine" ? Math.asin(d.y / d.length()) : -.12;
       tweenTo(e, fpLook(), .5);
     } else if (mode === "machine") {
-      const c = active.toW(0, camera.aspect < 1 ? 6.4 : 6.8, 11.2), t = active.toW(0, camera.aspect < 1 ? 4.3 : 4.7, 0);
+      const c = active.toW(0, camera.aspect < 1 ? 7.6 : 8, 12.4), t = active.toW(0, camera.aspect < 1 ? 3.6 : 4, 0);
       tweenTo(new THREE.Vector3(c.x, c.y, c.z), new THREE.Vector3(t.x, t.y, t.z), .5);
     } else {
       const d = new THREE.Vector3(Math.sin(fpYaw), 0, Math.cos(fpYaw));
@@ -252,7 +252,7 @@ async function main() {
     const port = camera.aspect < 1, m = mode === "machine";
     camera.fov = fpOn() ? (port ? 80 : 68) : m ? (port ? 70 : 50) : (port ? 58 : 40); camera.updateProjectionMatrix();
     Object.assign(controls, m
-      ? { minDistance: 7, maxDistance: 11.6, minAzimuthAngle: active.place.yaw - 1.0, maxAzimuthAngle: active.place.yaw + 1.0 }
+      ? { minDistance: 7, maxDistance: 16, minAzimuthAngle: active.place.yaw - 1.0, maxAzimuthAngle: active.place.yaw + 1.0 }
       : { minDistance: 8, maxDistance: 30, minAzimuthAngle: -Infinity, maxAzimuthAngle: Infinity });
   }
   function resize() {
@@ -339,12 +339,12 @@ async function main() {
     mode = "machine"; active = g; g.setLive(true); rebuildRow(rowOf(g));
     ui.setMode("machine"); ui.setMachineName(machineName(g)); ui.setSet(save.seen, g.species);
     const cp = g.toW(5.3, 0, 3.6); parkCart(new THREE.Vector3(cp.x, 0, cp.z), g.place.yaw - Math.PI / 2);
-    const k = g.toW(3.3, 0, 3.9);
+    const k = g.toW(0, 0, 3.9);   // (in the middle, in front of the controls; the camera looks over her head)
     kidBody.setNextKinematicTranslation({ x: k.x, y: KID_Y, z: k.z }); kidBody.setTranslation({ x: k.x, y: KID_Y, z: k.z }, true);
     kid.root.position.set(k.x, 0, k.z); kidYaw = g.place.yaw + Math.PI; kid.root.rotation.y = kidYaw;
     setView();
     const port = camera.aspect < 1;
-    const c = g.toW(0, port ? 6.4 : 6.8, 11.2), t = g.toW(0, port ? 4.3 : 4.7, 0);
+    const c = g.toW(0, port ? 7.6 : 8, 12.4), t = g.toW(0, port ? 3.6 : 4, 0);
     mAz = mH = 0;
     if (fp) {                                       // looking at the prizes through the glass
       aimAtPrizes();
@@ -728,7 +728,7 @@ async function main() {
     const f = controls.target;
     sun.position.set(f.x + 13, 24, f.z + 16); sun.target.position.set(f.x, 0, f.z);
     if (Q.get("cam") && frames < 3) { const c = Q.get("cam").split(",").map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); controls.update(); }
-    toppers.update(camera.position, controls.target, dt, mode === "walk");
+    toppers.update(camera.position, controls.target, dt, mode !== "wardrobe");
     if (!TEST || frames % 10 === 0 || window.TEST_DONE || window.FROZEN) composer.render();
     if (++frames >= 5 && !tween && (TEST !== "machine" || frames > 40) && (TEST !== "walk" || window.ARRIVED) && (TEST !== "wardrobe" || frames > 30)) window.READY = true;
     if (TEST === "claw" && testRounds.length >= ROUNDS && !window.TEST_DONE) {
