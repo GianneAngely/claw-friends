@@ -15,15 +15,12 @@ import hairPng from "../assets/kyoko_hair.png";
 import { toonFlat, toonTex, toonHair, flat, outline, outlineSkinned, outlineMatFor } from "./gfx.js";
 
 export const BASE = {};   // (hair / hoodColor: override the outfit's colours, for the staff: plain hair)
-// her drawn hair, recoloured (the first is the drawing's own colour); the styles leave out the braid or the long hair
+// her drawn hair, recoloured (the first is the drawing's own colour). (Styles that only hid the braid or the long hair
+// were taken out: the drawing's braid start stayed on the side lock and the hood lining showed where the hair was)
 export const HAIRS = [
   { id: "red", name: "Red", color: 0xA83A65 }, { id: "pink", name: "Pink", color: 0xF08DB8 },
   { id: "lilac", name: "Lilac", color: 0x9D86D8 }, { id: "brown", name: "Brown", color: 0x7A4A32 },
   { id: "black", name: "Black", color: 0x3A3442 }, { id: "blonde", name: "Blonde", color: 0xEBC46A },
-];
-export const STYLES = [
-  { id: "braid-long", name: "Braid + long" }, { id: "long", name: "Long" },
-  { id: "braid-bob", name: "Braid + bob" }, { id: "bob", name: "Bob" },
 ];
 // wardrobe: the tee and the shorts come in the six colour sets W1..W6 (mix and match)
 export const HOODS = [
@@ -47,14 +44,12 @@ export const BOTTOMS = [
   { id: "denim", name: "Denim", color: 0x6F8FC6 },
   { id: "brown", name: "Brown", color: 0x8C5B3D },
 ];
-export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red", style: "braid-long" };
+export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red" };
 const pick = (list, id) => list.find(x => x.id === id) || list[0];
 // outfit ids (+ base: hair / hood colour overrides for the staff) -> the colours makeKid paints
 export function dress(outfit = DEFAULT_OUTFIT, base = BASE) {
   const h = pick(HOODS, outfit.hood), t = pick(TOPS, outfit.top), b = pick(BOTTOMS, outfit.bottom);
-  const style = pick(STYLES, outfit.style).id;
-  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, braid: style.startsWith("braid"),
-    long: !style.endsWith("bob"), hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
+  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
 }
 
 const SKIN = 0xF8E5D6, INK = 0x2A1F2E;
@@ -166,9 +161,6 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     m.material = toonFlat(color, shade);
     outlineSkinned(m, color, INK);
   }
-
-  // ---------- hair style: the braid and / or the long hair left out
-  root.traverse(o => { if ((!ch.braid && o.name.startsWith("Braid")) || (!ch.long && o.name.startsWith("HairLong"))) o.visible = false; });
 
   // ---------- the hood's animal: the model has the koala's ears and nose; other animals swap in their own (on the ear
   // bones, so they bounce like the koala's), sized and placed from the koala parts, her rest pose = character space

@@ -6,7 +6,7 @@ import { makeKid, loadKid } from "./kid.js";
 const Q = new URLSearchParams(location.search);
 // ?outfits=hood.top.bottom,... (defaults: the main outfit plus a few mixes)
 const kinds = (Q.get("outfits") || "koala.navy.grey,koala.pink.white,koala.lilac.navy,koala.mint.cream,koala.black.denim,koala.yellow.brown").split(",")
-  .map(o => { const [hood, top, bottom, hair, style] = o.split("."); return { hood, top, bottom, hair, style }; });
+  .map(o => { const [hood, top, bottom, hair] = o.split("."); return { hood, top, bottom, hair }; });
 const views = (Q.get("views") || "0.35").split(",").map(Number);
 (async () => {
 await document.fonts.load("700 40px Fredoka");

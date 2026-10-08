@@ -11,7 +11,7 @@ import { makeMachine, bakeToppers, MACHINE_BY_ID, IX, IZ } from "./machine.js";
 import { makePlush, PLUSH, PLUSH_BY_KEY, SPECIES } from "./plush.js";
 import { buildRoom, PLACES, START, SHELF, CASHIER, SWAP, CORRAL, cartModel } from "./room.js";
 import { ClawGame } from "./claw.js";
-import { makeKid, loadKid, DEFAULT_OUTFIT, HOODS, HAIRS, STYLES, TOPS, BOTTOMS } from "./kid.js";
+import { makeKid, loadKid, DEFAULT_OUTFIT, HOODS, HAIRS, TOPS, BOTTOMS } from "./kid.js";
 import * as ui from "./ui.js";
 import * as store from "./save.js";
 import * as audio from "./sfx.js";
@@ -119,7 +119,7 @@ async function main() {
   // ---------- kid ----------
   // the main character's outfit (?outfit=hood.top.bottom overrides for tests)
   save.outfit = { ...DEFAULT_OUTFIT, ...(save.outfit || {}) };
-  if (Q.get("outfit")) { const [hood, top, bottom, hair, style] = Q.get("outfit").split("."); save.outfit = { ...DEFAULT_OUTFIT, hood, top, bottom, ...(hair && { hair }), ...(style && { style }) }; }
+  if (Q.get("outfit")) { const [hood, top, bottom, hair] = Q.get("outfit").split("."); save.outfit = { ...DEFAULT_OUTFIT, hood, top, bottom, ...(hair && { hair }) }; }
   let kid = makeKid(save.outfit); scene.add(kid.root);
   // ?hide=MeshName,... hides parts of the kid (and their outlines, named Name_line) for debugging
   const HIDE = (Q.get("hide") || "").split(",").filter(Boolean);
@@ -414,7 +414,7 @@ async function main() {
     const port = camera.aspect < 1;
     const tgt = p.clone().add(new THREE.Vector3(0, port ? .1 : 1.9, 0)).addScaledVector(camR, port ? 0 : 1.65);
     tweenTo(p.clone().addScaledVector(dir, port ? 10 : 8.5).add(new THREE.Vector3(0, 2.6, 0)).addScaledVector(camR, port ? 0 : 1.65), tgt);
-    ui.openWardrobe({ hood: HOODS, hair: HAIRS, style: STYLES, top: TOPS, bottom: BOTTOMS }, save.outfit, (kind, id) => {
+    ui.openWardrobe({ hood: HOODS, hair: HAIRS, top: TOPS, bottom: BOTTOMS }, save.outfit, (kind, id) => {
       save.outfit = { ...save.outfit, [kind]: id }; persist();
       rebuildKid(); kid.setFace("happy", 1.1); audio.sfx.button();
     });
