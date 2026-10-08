@@ -12,9 +12,19 @@ import faceHappy from "../assets/kyoko_face_happy.png";
 import faceSad from "../assets/kyoko_face_sad.png";
 import faceWow from "../assets/kyoko_face_wow.png";
 import hairPng from "../assets/kyoko_hair.png";
-import { toonFlat, toonTex, flat, outline, outlineSkinned, outlineMatFor } from "./gfx.js";
+import { toonFlat, toonTex, toonHair, flat, outline, outlineSkinned, outlineMatFor } from "./gfx.js";
 
-export const BASE = { hair: 0xA32858 };   // (hoodColor: overrides the hood's own colour, for the staff)
+export const BASE = {};   // (hair / hoodColor: override the outfit's colours, for the staff: plain hair)
+// her drawn hair, recoloured (the first is the drawing's own colour); the styles leave out the braid or the long hair
+export const HAIRS = [
+  { id: "red", name: "Red", color: 0xA83A65 }, { id: "pink", name: "Pink", color: 0xF08DB8 },
+  { id: "lilac", name: "Lilac", color: 0x9D86D8 }, { id: "brown", name: "Brown", color: 0x7A4A32 },
+  { id: "black", name: "Black", color: 0x3A3442 }, { id: "blonde", name: "Blonde", color: 0xEBC46A },
+];
+export const STYLES = [
+  { id: "braid-long", name: "Braid + long" }, { id: "long", name: "Long" },
+  { id: "braid-bob", name: "Braid + bob" }, { id: "bob", name: "Bob" },
+];
 // wardrobe: the tee and the shorts come in the six colour sets W1..W6 (mix and match)
 export const HOODS = [
   { id: "koala", name: "Koala", color: 0xC7C7D0 }, { id: "cat", name: "Cat", color: 0xF4C08E },
@@ -37,12 +47,14 @@ export const BOTTOMS = [
   { id: "denim", name: "Denim", color: 0x6F8FC6 },
   { id: "brown", name: "Brown", color: 0x8C5B3D },
 ];
-export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey" };
+export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red", style: "braid-long" };
 const pick = (list, id) => list.find(x => x.id === id) || list[0];
 // outfit ids (+ base: hair / hood colour overrides for the staff) -> the colours makeKid paints
 export function dress(outfit = DEFAULT_OUTFIT, base = BASE) {
   const h = pick(HOODS, outfit.hood), t = pick(TOPS, outfit.top), b = pick(BOTTOMS, outfit.bottom);
-  return { hair: base.hair ?? BASE.hair, hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
+  const style = pick(STYLES, outfit.style).id;
+  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, braid: style.startsWith("braid"),
+    long: !style.endsWith("bob"), hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
 }
 
 const SKIN = 0xF8E5D6, INK = 0x2A1F2E;
@@ -142,8 +154,8 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     if (name === "HairTex") {   // Kyoko's hair carries the drawing; the staff (other hair colours) get the plain colour
       // her hair's lines are drawn in its texture, outline included: a 3D outline on top doubled them and showed
       // through as scratches; plain hair needs it
-      if (ch.hair === BASE.hair) {
-        m.material = toonTex(0xFFFFFF, HAIR_TEX);
+      if (ch.drawn) {
+        m.material = ch.hair === HAIRS[0].color ? toonTex(0xFFFFFF, HAIR_TEX) : toonHair(HAIR_TEX, HAIRS[0].color, ch.hair);
         if (m.name.startsWith("HairLong")) outlineSkinned(m, ch.hair, INK);   // (the long hair is seen from above too)
       } else { m.material = toonFlat(ch.hair, .8); outlineSkinned(m, ch.hair, INK); }
       continue;
@@ -154,6 +166,9 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     m.material = toonFlat(color, shade);
     outlineSkinned(m, color, INK);
   }
+
+  // ---------- hair style: the braid and / or the long hair left out
+  root.traverse(o => { if ((!ch.braid && o.name.startsWith("Braid")) || (!ch.long && o.name.startsWith("HairLong"))) o.visible = false; });
 
   // ---------- the hood's animal: the model has the koala's ears and nose; other animals swap in their own (on the ear
   // bones, so they bounce like the koala's), sized and placed from the koala parts, her rest pose = character space
