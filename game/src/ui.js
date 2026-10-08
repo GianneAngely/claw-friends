@@ -24,6 +24,7 @@ export function init() {
     if (e.code === "KeyC") input.wardrobe = true;
     if (e.code === "KeyH") input.hideCart = true;
     if (e.code === "KeyV") input.view = true;
+    if (e.code === "KeyG") foldGoals();
     if (e.code.startsWith("Arrow")) e.preventDefault();
   });
   addEventListener("keyup", e => keys.delete(e.code));
@@ -50,6 +51,8 @@ export function init() {
   $("cartPill").addEventListener("click", () => { input.hideCart = true; });
   $("keysBtn").addEventListener("click", e => { input.keys = true; e.currentTarget.blur(); });
   $("viewBtn").addEventListener("click", e => { input.view = true; e.currentTarget.blur(); });
+  $("goals").addEventListener("click", foldGoals);
+  $("goals").classList.toggle("folded", goalsFolded);
 
   // walking joystick (touch screens only)
   const joy = $("joy"), JR = 44;
@@ -97,6 +100,15 @@ export function init() {
 }
 
 // WASD direction (walking / claw), x = right, y = forward
+// the goals list folds down to its title (click it or G); remembered
+let goalsFolded = false;
+try { goalsFolded = localStorage.getItem("cf-goals-folded") === "1"; } catch {}
+function foldGoals() {
+  goalsFolded = !goalsFolded;
+  try { localStorage.setItem("cf-goals-folded", goalsFolded ? "1" : "0"); } catch {}
+  $("goals").classList.toggle("folded", goalsFolded);
+  const f = $("goals").querySelector(".fold"); if (f) f.textContent = goalsFolded ? "+" : "–";
+}
 export function keyDir() {
   let x = 0, y = 0;
   if (keys.has("KeyA")) x -= 1;
@@ -177,7 +189,7 @@ export function floatScore(text) {
   setTimeout(() => el.remove(), 1300);
 }
 export function setGoals(list) {
-  $("goals").innerHTML = `<b>Goals</b>` + list.map(g => `<div class="goal ${g.done ? "done" : ""}"><i>${g.done ? "✔" : ""}</i><span>${g.text}</span></div>`).join("");
+  $("goals").innerHTML = `<b>Goals <i class="fold">${goalsFolded ? "+" : "–"}</i></b>` + list.map(g => `<div class="goal ${g.done ? "done" : ""}"><i>${g.done ? "✔" : ""}</i><span>${g.text}</span></div>`).join("");
 }
 export function onMusic(toggle, on) {
   const b = $("mus");
@@ -266,10 +278,10 @@ export function showControls(touch, onReplay) {
   const K = s => s.split(" ").map(k => `<kbd>${k}</kbd>`).join("");
   const rows = touch ? [
     ["Joystick", "Walk"], ["Drag the screen", "Look around"], ["Pink button", "Use (carts, machines, cashier)"],
-    ["Stick + <b>GRAB</b>", "Move the claw, grab"], ["Cart counter", "Put the cart away / bring it back"], ["Shirt button", "Wardrobe"], ["Eye button", "Through Kyoko's eyes / back"],
+    ["Stick + <b>GRAB</b>", "Move the claw, grab"], ["Cart counter", "Put the cart away / bring it back"], ["Shirt button", "Wardrobe"], ["Eye button", "Through Kyoko's eyes / back"], ["Tap the goals", "Hide / show them"],
   ] : [
     [K("W A S D"), "Walk · move the claw"], [`${K("← → ↑ ↓")} or drag`, "Look around"], [`${K("E")} ${K("Space")}`, "Use · grab"],
-    [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("V"), "Through Kyoko's eyes / back"], [K("Esc"), "Leave the machine"],
+    [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("V"), "Through Kyoko's eyes / back"], [K("G"), "Hide / show the goals"], [K("Esc"), "Leave the machine"],
   ];
   openCard(`<h2>Controls</h2><div class="keylist">${rows.map(([k, d]) => `<div class="krow"><span>${k}</span><b>${d}</b></div>`).join("")}</div>
     <button class="replay" id="k-replay">Replay the tutorial</button><button class="ok">Close</button>`, true);
