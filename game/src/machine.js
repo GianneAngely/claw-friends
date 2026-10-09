@@ -96,16 +96,19 @@ export function bakeToppers(machines) {
   return {
     group,
     // cam / target: world positions; on: fading allowed (walking), else the heads come back
-    update(cam, target, dt, on) {
+    // near: how close (in head sizes) to the camera a head fades - wider while walking, where heads right beside the
+    // follow camera filled half the screen; at a machine its own head must stay
+    update(cam, target, dt, on, walking = false) {
+      const near = walking ? 3.8 : 2.3;
       for (let i = 0; i < inv.length; i++) {
         const m = gone[i] ? 1.12 : 1;                      // (hysteresis: no flicker on the edge)
         let out = false;
         if (on) {
           a.copy(cam).applyMatrix4(inv[i]).divide(T_AX);
-          out = a.length() < 2.3 * m;
+          out = a.length() < near * m;
           // sight lines to the kid's middle, head and either side (only the middle one: at the back shelf, heads
           // just off it still filled the view round her)
-          for (let j = 0; j < AIMS.length && !out; j++) {
+          for (let j = 0; j < (walking ? AIMS.length : 1) && !out; j++) {   // (at a machine: its own head stays)
             b.copy(target).add(AIMS[j]).applyMatrix4(inv[i]).divide(T_AX);
             for (let k = 1; k < 12 && !out; k++) {
               p.lerpVectors(a, b, k / 12);
