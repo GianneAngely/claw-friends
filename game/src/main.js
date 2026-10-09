@@ -80,11 +80,13 @@ async function main() {
   const canvas = document.getElementById("c");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(S.quality === "low" ? 1 : Math.min(devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = S.quality !== "low";   // (light: no shadow sampling in the shaders at all)
   renderer.shadowMap.type = THREE.PCFShadowMap;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xDCEFFB);
-  const camera = new THREE.PerspectiveCamera(40, 1, .1, 300);
+  // (near .5 / far 160: phones with a 16-bit depth buffer showed the floor and walls black - their back faces and
+  // outline hulls won the depth test at .1 / 300)
+  const camera = new THREE.PerspectiveCamera(40, 1, .5, 160);
   // soft glow on the brightest areas, like a lit illustration
   // the scene is drawn into the composer's own render target: it needs its own multisampling (the canvas'
   // antialias doesn't reach it) - without it every outline was jagged and broken up
