@@ -230,9 +230,9 @@ body.titling #hud > *:not(#title):not(.modal):not(.loading):not(.toast) { displa
 .seg button { flex: 1; height: 36px; border-radius: 999px; border: 3px solid var(--ink); background: #fff; font-weight: 600; font-size: 15px; }
 .seg button.on { background: var(--pink2); }
 .sfoot { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
-.sfoot button { min-width: 150px; height: 46px; border-radius: 999px; border: 3px solid var(--ink); font-weight: 700; font-size: 17px; }
+.sfoot button { display: flex; align-items: center; justify-content: center; padding: 0 18px !important; line-height: 1; min-width: 150px; height: 46px; border-radius: 999px; border: 3px solid var(--ink); font-weight: 700; font-size: 17px; }
 .sfoot .danger { background: #fff; color: #C2416F; }
-.sfoot .ok { margin: 0 !important; background: var(--mint); font-size: 19px; box-shadow: 0 4px 0 rgba(74, 58, 94, .25); }
+.sfoot .ok { border-width: 3px !important; margin: 0 !important; background: var(--mint); font-size: 19px; box-shadow: 0 4px 0 rgba(74, 58, 94, .25); }
 .confirm { margin-top: 8px; padding: 10px; border-radius: 18px; background: #FFF0F4; }
 .confirm .row2 { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
 .confirm .row2 button { padding: 6px 18px; border-radius: 999px; border: 3px solid var(--ink); background: #fff; font-weight: 700; }
