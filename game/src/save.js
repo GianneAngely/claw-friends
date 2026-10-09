@@ -9,7 +9,7 @@ const DEMO = () => ({
   seen: {}, big: { duck: 1, seal: 1 }, shiny: { "duck-frog": true, "shiba-crown": true }, sets: { duck: true },
   goals: { cart: true, win3: true, swap: true, checkout: true }, day: 4,
   reqs: [{ kind: "species", sp: "seal", n: 3, have: 1, text: "Win 3 Seals" }, { kind: "tier", n: 1, have: 1, text: "Win a Sailor or Royal friend" }, { kind: "checkout", n: 5, have: 0, text: "Check out 5+ friends at once" }],
-  outfit: { hood: "cat", top: "pink", bottom: "white", hair: "red", face: "idle", height: "m", shoes: "boots" },
+  outfit: { hood: "koala", top: "navy", bottom: "grey", hair: "red", face: "idle", height: "m", shoes: "sneakers" },   // (her own look, as drawn)
 });
 const fresh = () => ({ coins: 30, owned: {}, ticketDay: "", score: 0, cart: [], seen: {}, big: {}, goals: {}, wins: 0, hasCart: false });
 
