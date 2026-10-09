@@ -5,3 +5,14 @@ __pycache__/
 previews/
 .vercel
 .env*
+# reference material that isn't ours (kept on this machine only, never published)
+refs/character/ref-umaru.png
+refs/character/recolor-koala*.png
+refs/character/compare-ref-vs-*.png
+refs/character/flow-koala-*.png
+refs/character/s[0-9].*
+refs/moodboard*
+refs/picks.png
+refs/pins.json
+refs/index.json
+refs/sheets/
