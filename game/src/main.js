@@ -375,7 +375,8 @@ async function main() {
   const persist = () => store.save(save);
 
   // ---------- spots ----------
-  const spots = games.map(g => ({ kind: "machine", g, x: g.place.x + Math.sin(g.place.yaw) * 4.6, z: g.place.z + Math.cos(g.place.yaw) * 4.6, r: 2.4 }));
+  // (r 3.2: pushing the cart, its front meets the machine with her ~7.1 from the machine's middle - just outside 2.4)
+  const spots = games.map(g => ({ kind: "machine", g, x: g.place.x + Math.sin(g.place.yaw) * 4.6, z: g.place.z + Math.cos(g.place.yaw) * 4.6, r: 3.2 }));
   spots.push({ kind: "corral", x: CORRAL.x, z: CORRAL.z - 3.2, r: 2.6 });
   spots.push({ kind: "cashier", x: CASHIER.x + 3.1, z: CASHIER.z, r: 3.2 });
   spots.push({ kind: "swap", x: SWAP.x - 3.1, z: SWAP.z, r: 3.2 });
