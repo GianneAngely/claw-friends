@@ -170,7 +170,7 @@ export function setMode(m) {
 const hex = c => "#" + c.toString(16).padStart(6, "0");
 // lockOf(kind, id): stars still needed for a locked item (0 = unlocked)
 export function openWardrobe(items, current, onPick, lockOf = () => 0) {
-  for (const kind of ["face", "height", "hood", "hair", "top", "bottom"]) {
+  for (const kind of ["face", "height", "hood", "hair", "top", "bottom", "shoes"]) {
     const row = $("w-" + kind);
     row.innerHTML = items[kind].map(it =>
       { const lk = lockOf(kind, it.id);

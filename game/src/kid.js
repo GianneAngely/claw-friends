@@ -4,6 +4,7 @@
 // hair, braid, ears and cape. The model's rest pose is the reference pose: waving.
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 import kyokoGlb from "../assets/kyoko.glb";
 import faceIdle from "../assets/kyoko_face_idle.png";
@@ -51,17 +52,23 @@ export const FACE_OPTS = [
   { id: "idle", name: "Sly" }, { id: "happy", name: "Happy" }, { id: "wow", name: "Surprised" },
   { id: "sad", name: "Crying" }, { id: "pout", name: "Pout" }, { id: "wink", name: "Wink" },
 ];
+// shoes, built in the game on the foot bones (style = the shape, color = the main colour)
+export const SHOES = [
+  { id: "sneakers", name: "Sneakers", color: 0xF48FB8, style: "sneaker" }, { id: "canvas", name: "Canvas", color: 0xA6E3C6, style: "sneaker" },
+  { id: "maryjane", name: "Mary Janes", color: 0x3A3442, style: "maryjane" }, { id: "boots", name: "Boots", color: 0x8C5B3D, style: "boot" },
+  { id: "rain", name: "Rain boots", color: 0xFFD34E, style: "rain" }, { id: "slippers", name: "Slippers", color: 0xFFFFFF, style: "slipper" },
+];
 // her size: the whole model scaled (the cart she pushes stays the same)
 export const HEIGHTS = [
   { id: "xs", name: "Tiny", scale: .84 }, { id: "s", name: "Short", scale: .92 }, { id: "m", name: "Normal", scale: 1 },
   { id: "l", name: "Tall", scale: 1.1 }, { id: "xl", name: "Taller", scale: 1.2 },
 ];
-export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red", face: "idle", height: "m" };
+export const DEFAULT_OUTFIT = { hood: "koala", top: "navy", bottom: "grey", hair: "red", face: "idle", height: "m", shoes: "sneakers" };
 const pick = (list, id) => list.find(x => x.id === id) || list[0];
 // outfit ids (+ base: hair / hood colour overrides for the staff) -> the colours makeKid paints
 export function dress(outfit = DEFAULT_OUTFIT, base = BASE) {
   const h = pick(HOODS, outfit.hood), t = pick(TOPS, outfit.top), b = pick(BOTTOMS, outfit.bottom);
-  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, face: pick(FACE_OPTS, outfit.face).id, scale: pick(HEIGHTS, outfit.height ?? "m").scale, hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
+  return { hair: base.hair ?? pick(HAIRS, outfit.hair).color, drawn: base.hair === undefined, face: pick(FACE_OPTS, outfit.face).id, scale: pick(HEIGHTS, outfit.height ?? "m").scale, shoes: pick(SHOES, outfit.shoes), hood: h.id, hoodColor: base.hoodColor ?? h.color, topColor: t.color, bottomColor: b.color };
 }
 
 const SKIN = 0xF8E5D6, INK = 0x2A1F2E;
@@ -209,6 +216,38 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
     if (ch.hood === "cat") nose(PINK, [.07, .05, .04]);
     else if (ch.hood === "bunny") nose(PINK, [.06, .045, .04]);
     else if (ch.hood === "bear") { part(ball, lighter(hood, .45), .3, [-.02, 3.06, .34], [.24, .16, .07], 0, bone("head")); nose(0x38373B, [.08, .06, .05]); }
+  }
+
+  // ---------- shoes: on the foot bones, sized from her feet (sole at the floor contact height .015, so she still
+  // stands on the floor); her rest pose = character space
+  {
+    const sh = ch.shoes, INK_L = inkLine(), dark = darker(sh.color, .62);
+    const shoePart = (geo, color, shade, x, y, z, sx, sy, sz, parent, lined = true) => {
+      const m = new THREE.Mesh(geo, toonFlat(color, shade));
+      m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true;
+      if (lined) { outline(m); m.children[0].material = INK_L; }
+      parent.attach(m);
+    };
+    const box = new RoundedBoxGeometry(1, 1, 1, 3, .32), ball = new THREE.SphereGeometry(1, 24, 12), tube = new THREE.CylinderGeometry(1, 1, 1, 24);
+    // (chunky, chibi-sized: shoes the size of her feet vanished under the cloak from the game camera)
+    for (const g of [1, -1]) {
+      const foot = skeleton.getBoneByName(g > 0 ? "foot_L" : "foot_R"), fx = .33 * g, fz = .2;
+      if (sh.style === "slipper") {
+        shoePart(ball, sh.color, .3, fx, .075, fz, .12, .065, .2, foot);
+        shoePart(ball, 0xF7B3C8, .4, fx, .135, fz + .12, .045, .045, .045, foot, false);           // pom
+        continue;
+      }
+      const low = sh.style === "maryjane", h = low ? .085 : .115;
+      shoePart(box, sh.color, .35, fx, .015 + h / 2, fz, .2, h, .36, foot);
+      shoePart(box, sh.style === "sneaker" ? 0xFFFFFF : dark, .3, fx, .03, fz, .21, .032, .37, foot, false);   // sole
+      if (sh.style === "sneaker") shoePart(box, 0xFFFFFF, .3, fx, .015 + h, fz + .03, .09, .016, .15, foot, false);   // laces
+      if (low) shoePart(box, 0xFFFFFF, .3, fx, .015 + h, fz - .02, .205, .018, .04, foot, false);                 // strap
+      if (sh.style === "boot" || sh.style === "rain") {
+        const top = sh.style === "rain" ? .26 : .22;
+        shoePart(tube, sh.color, .35, fx, (.06 + top) / 2, .14, .105, top - .06, .105, foot);
+        if (sh.style === "rain") shoePart(tube, 0xFFFFFF, .3, fx, top - .012, .14, .108, .024, .108, foot, false);
+      }
+    }
   }
 
   // ---------- rig: rotations are given in character space (x = her left, y = up, z = forward) ----------

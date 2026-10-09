@@ -54,6 +54,7 @@ const LOCKS = {
   hair: { red: 0, brown: 80, black: 160, pink: 300, lilac: 600, blonde: 1000 },
   top: { navy: 0, pink: 0, lilac: 120, mint: 240, black: 450, yellow: 750 },
   bottom: { grey: 0, white: 0, navy: 120, cream: 240, denim: 450, brown: 750 },
+  shoes: { sneakers: 0, canvas: 0, maryjane: 150, boots: 350, rain: 600, slippers: 900 },
 };
 export const starsFor = (kind, id) => (LOCKS[kind] && LOCKS[kind][id]) || 0;
 // items whose price lies in (before, after]: just unlocked by a score change
@@ -61,7 +62,7 @@ export function newlyUnlocked(before, after, items) {
   const out = [];
   for (const kind in LOCKS) for (const id in LOCKS[kind]) {
     const c = LOCKS[kind][id];
-    if (c > before && c <= after) { const it = items[kind].find(x => x.id === id); if (it) out.push(`${it.name} ${kind === "hood" ? "hood" : kind === "face" ? "face" : kind === "height" ? "size" : kind === "hair" ? "hair" : kind}`); }
+    if (c > before && c <= after) { const it = items[kind].find(x => x.id === id); if (it) out.push(`${it.name} ${kind === "hood" ? "hood" : kind === "face" ? "face" : kind === "height" ? "size" : kind === "hair" ? "hair" : kind === "shoes" ? "" : kind}`.trim()); }
   }
   return out;
 }

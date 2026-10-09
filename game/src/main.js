@@ -12,7 +12,7 @@ import { makePlush, PLUSH, PLUSH_BY_KEY, SPECIES } from "./plush.js";
 import { buildRoom, setSkyTint, PLACES, START, SHELF, CASHIER, SWAP, CORRAL, cartModel } from "./room.js";
 import { makeVisitors } from "./visitors.js";
 import { ClawGame } from "./claw.js";
-import { makeKid, loadKid, DEFAULT_OUTFIT, HOODS, HAIRS, FACE_OPTS, HEIGHTS, TOPS, BOTTOMS } from "./kid.js";
+import { makeKid, loadKid, DEFAULT_OUTFIT, HOODS, HAIRS, FACE_OPTS, HEIGHTS, SHOES, TOPS, BOTTOMS } from "./kid.js";
 import * as ui from "./ui.js";
 import * as store from "./save.js";
 import * as audio from "./sfx.js";
@@ -403,7 +403,7 @@ async function main() {
   }
   function goal(key) { if (!save.goals[key]) { save.goals[key] = true; persist(); refreshGoals(); ui.toast("Goal complete!"); audio.sfx.coin(); } }
   refreshGoals();
-  const WARD = { hood: HOODS, face: FACE_OPTS, height: HEIGHTS, hair: HAIRS, top: TOPS, bottom: BOTTOMS };
+  const WARD = { hood: HOODS, face: FACE_OPTS, height: HEIGHTS, hair: HAIRS, top: TOPS, bottom: BOTTOMS, shoes: SHOES };
   function addScore(n) {
     const before = save.score;
     save.score += n; persist(); ui.setScore(save.score); ui.floatScore(`+${n}`);
