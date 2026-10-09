@@ -380,7 +380,8 @@ async function main() {
   spots.push({ kind: "corral", x: CORRAL.x, z: CORRAL.z - 3.2, r: 2.6 });
   spots.push({ kind: "cashier", x: CASHIER.x + 3.1, z: CASHIER.z, r: 3.2 });
   spots.push({ kind: "swap", x: SWAP.x - 3.1, z: SWAP.z, r: 3.2 });
-  spots.push({ kind: "shelf", x: SHELF.x, z: SHELF.z + 2.9, r: 3 });
+  // the shelf's middle is behind the central rows, out of reach: it's used from either end
+  for (const sx of [-1, 1]) spots.push({ kind: "shelf", x: SHELF.x + sx * 6.3, z: SHELF.z + 2.6, r: 2.6 });
   let near = null;
 
   // ---------- goals: a short guided loop, then the collection ----------

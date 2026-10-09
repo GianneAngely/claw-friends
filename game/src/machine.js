@@ -79,7 +79,8 @@ const TOPPERS = {
 // own. The heads stand at the camera's height: the camera went into them, or right up against one, walking by the
 // machines. A head fades out when the camera is at it or it's across the line of sight to the kid - all the way
 // (half-faded heads held still showed as a dotted ghost) - quickly, and comes back only a bit past where it went
-const T_AX = new THREE.Vector3(HA + .3, HB + .8, HC + .3);   // round a head, ears and tufts included
+const T_AX = new THREE.Vector3(HA + .3, HB + .8, HC + .3);
+const AIMS = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.2, 0), new THREE.Vector3(2.2, .6, 0), new THREE.Vector3(-2.2, .6, 0), new THREE.Vector3(0, .6, 2.2), new THREE.Vector3(0, .6, -2.2)];   // round a head, ears and tufts included
 export function bakeToppers(machines) {
   const all = new THREE.Group(), inv = [];
   machines.forEach((m, i) => {
@@ -100,11 +101,16 @@ export function bakeToppers(machines) {
         const m = gone[i] ? 1.12 : 1;                      // (hysteresis: no flicker on the edge)
         let out = false;
         if (on) {
-          a.copy(cam).applyMatrix4(inv[i]).divide(T_AX); b.copy(target).applyMatrix4(inv[i]).divide(T_AX);
+          a.copy(cam).applyMatrix4(inv[i]).divide(T_AX);
           out = a.length() < 2.3 * m;
-          for (let k = 1; k < 12 && !out; k++) {
-            p.lerpVectors(a, b, k / 12);
-            out = p.y > -.2 && p.length() < 1.1 * m;
+          // sight lines to the kid's middle, head and either side (only the middle one: at the back shelf, heads
+          // just off it still filled the view round her)
+          for (let j = 0; j < AIMS.length && !out; j++) {
+            b.copy(target).add(AIMS[j]).applyMatrix4(inv[i]).divide(T_AX);
+            for (let k = 1; k < 12 && !out; k++) {
+              p.lerpVectors(a, b, k / 12);
+              out = p.y > -.2 && p.length() < 1.1 * m;
+            }
           }
         }
         gone[i] = out;
