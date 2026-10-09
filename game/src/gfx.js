@@ -228,8 +228,9 @@ export function outline(m) {
   return m;
 }
 
-export const SPH = new THREE.SphereGeometry(1, 22, 16);
-const SPH_MID = new THREE.SphereGeometry(1, 14, 10), SPH_LO = new THREE.SphereGeometry(1, 8, 6);
+// (detail kept modest: 16 machines hold ~300 plushies, and every part is drawn twice with its outline)
+export const SPH = new THREE.SphereGeometry(1, 18, 12);
+const SPH_MID = new THREE.SphereGeometry(1, 11, 8), SPH_LO = new THREE.SphereGeometry(1, 8, 6);
 const sphFor = s => s < .07 ? SPH_LO : s < .2 ? SPH_MID : SPH;
 export function mesh(geo, mat, x = 0, y = 0, z = 0, lined = true) {
   const m = new THREE.Mesh(geo, mat);
@@ -250,11 +251,11 @@ export function dot(c, sx, sy, sz) {
   return m;
 }
 export function rbox(w, h, d, r, c, x, y, z) {
-  return mesh(new RoundedBoxGeometry(w, h, d, 4, r), typeof c === "number" ? toon(c) : c, x, y, z);
+  return mesh(new RoundedBoxGeometry(w, h, d, 3, r), typeof c === "number" ? toon(c) : c, x, y, z);
 }
 export function tube(pts, r, mat, lined = true) {
   const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)));
-  return mesh(new THREE.TubeGeometry(curve, 24, r, 10), mat, 0, 0, 0, lined);
+  return mesh(new THREE.TubeGeometry(curve, 18, r, 8), mat, 0, 0, 0, lined);
 }
 
 const Z = new THREE.Vector3(0, 0, 1);

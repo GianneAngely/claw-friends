@@ -51,14 +51,14 @@ const BODIES = {
     g.add(stick(blob(light, .31, .2, .1), DA, DB, DC, 0, -.13, -.03));
     for (const s of [-1, 1]) {
       if (headTop) {
-        const ear = mesh(new THREE.ConeGeometry(.13, .26, 16), toon(fur), .25 * s, .42, .02); ear.rotation.z = -.35 * s; g.add(ear);
-        const inner = mesh(new THREE.ConeGeometry(.07, .15, 12), toon(C.pink3), .25 * s, .41, .09, false); inner.rotation.z = -.35 * s; g.add(inner);
+        const ear = mesh(new THREE.ConeGeometry(.13, .26, 12), toon(fur), .25 * s, .42, .02); ear.rotation.z = -.35 * s; g.add(ear);
+        const inner = mesh(new THREE.ConeGeometry(.07, .15, 8), toon(C.pink3), .25 * s, .41, .09, false); inner.rotation.z = -.35 * s; g.add(inner);
       }
       g.add(blob(light, .12, .06, .11, .16 * s, -.43, .2));
     }
     face(g, { eyeY: .1 });
     g.add(stick(dot(C.ink, .045, .033, .03), DA, DB, DC, 0, -.02, .07));
-    const tail = mesh(new THREE.TorusGeometry(.1, .045, 10, 24, Math.PI * 1.5), toon(light), 0, .05, -.47); tail.rotation.y = Math.PI / 2; g.add(tail);
+    const tail = mesh(new THREE.TorusGeometry(.1, .045, 8, 16, Math.PI * 1.5), toon(light), 0, .05, -.47); tail.rotation.y = Math.PI / 2; g.add(tail);
   },
   seal(g) {
     const fur = 0xE6ECF6;
@@ -99,7 +99,7 @@ function flowerMesh(petal) {
 
 const ACC_BUILD = {
   frog(g) {
-    const hood = mesh(new THREE.SphereGeometry(.54, 40, 20, 0, Math.PI * 2, 0, 1.28), toon(C.green));
+    const hood = mesh(new THREE.SphereGeometry(.54, 28, 14, 0, Math.PI * 2, 0, 1.28), toon(C.green));
     hood.scale.set(1, .95, .93); hood.rotation.x = -.5; g.add(hood);
     for (const s of [-1, 1]) {
       g.add(blob(C.green, .11, .11, .11, .19 * s, .45, .08));
@@ -110,7 +110,7 @@ const ACC_BUILD = {
   straw(g) {
     const hat = new THREE.Group();
     hat.add(blob(C.straw, .47, .025, .47), blob(C.straw, .23, .17, .23, 0, .02, 0));
-    const band = mesh(new THREE.TorusGeometry(.222, .032, 12, 40), toon(C.pink3), 0, .05, 0); band.rotation.x = Math.PI / 2;
+    const band = mesh(new THREE.TorusGeometry(.222, .032, 8, 28), toon(C.pink3), 0, .05, 0); band.rotation.x = Math.PI / 2;
     hat.add(band, blob(C.pink3, .06, .045, .035, .2, .08, .13), blob(C.pink3, .06, .045, .035, .27, .06, .08));
     hat.position.set(.02, .4, -.02); hat.rotation.set(-.12, 0, .15); g.add(hat);
   },
@@ -123,7 +123,7 @@ const ACC_BUILD = {
   },
   sailor(g) {
     g.add(blob(C.white, .21, .12, .21, 0, .47, -.02));
-    const band = mesh(new THREE.TorusGeometry(.2, .03, 12, 40), toon(C.blue), 0, .42, -.02); band.rotation.x = Math.PI / 2;
+    const band = mesh(new THREE.TorusGeometry(.2, .03, 8, 28), toon(C.blue), 0, .42, -.02); band.rotation.x = Math.PI / 2;
     g.add(band, blob(C.pink3, .05, .05, .05, 0, .59, -.02));
     const sh = new THREE.Shape(); sh.moveTo(-.14, .04); sh.lineTo(.14, .04); sh.lineTo(0, -.15); sh.closePath();
     const tri = mesh(new THREE.ExtrudeGeometry(sh, { depth: .02, bevelEnabled: true, bevelThickness: .012, bevelSize: .014, bevelSegments: 3 }), toon(C.blue));
@@ -131,10 +131,10 @@ const ACC_BUILD = {
     g.add(stick(blob(C.pink3, .045, .045, .035), DA, DB, DC, 0, -.17, .03));
   },
   crown(g) {
-    const ring = mesh(new THREE.TorusGeometry(.17, .04, 12, 36), toon(C.gold), 0, .47, 0); ring.rotation.x = Math.PI / 2; g.add(ring);
+    const ring = mesh(new THREE.TorusGeometry(.17, .04, 8, 24), toon(C.gold), 0, .47, 0); ring.rotation.x = Math.PI / 2; g.add(ring);
     for (let i = 0; i < 5; i++) {
       const a = i / 5 * Math.PI * 2;
-      g.add(mesh(new THREE.ConeGeometry(.055, .16, 16), toon(C.gold), Math.sin(a) * .17, .56, Math.cos(a) * .17));
+      g.add(mesh(new THREE.ConeGeometry(.055, .16, 10), toon(C.gold), Math.sin(a) * .17, .56, Math.cos(a) * .17));
       g.add(blob(C.cream, .026, .026, .026, Math.sin(a) * .17, .65, Math.cos(a) * .17));
     }
     g.add(blob(C.pink5, .04, .04, .025, 0, .48, .21));

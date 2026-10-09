@@ -823,6 +823,7 @@ async function main() {
   // ---------- title screen, pause, settings ----------
   let paused = false, titleT = 0;
   // juice: slow motion over the chute, a little camera shake on wins
+  const _frustum = new THREE.Frustum(), _pv = new THREE.Matrix4(), _sph = new THREE.Sphere();
   let slowT = 0, timeScale = 1, shakeT = 0, shakeA = 0;
   function shake(a) { shakeA = a; shakeT = .35; }
   function applySettings(patch) {
@@ -842,6 +843,29 @@ async function main() {
       keys: () => ui.showControls(TOUCH, () => { paused = false; tutGo(0); }, pauseMenu), title: () => restart(false),
     });
   }
+  // automatic graphics: the first time the game is played on a computer, the frame rate is measured for a few
+  // seconds; if it's low, light graphics are switched on in place (once per browser, unless chosen in the settings)
+  let autoQ = null;
+  function startAutoQuality() {
+    if (TEST || Q.get("quality") || S.quality !== "high" || S.autoChecked) return;
+    let t = 0, frames = 0, time = 0;
+    autoQ = dt => {
+      if (mode !== "walk" && mode !== "machine" || paused || tween || document.hidden) return;
+      t += dt;
+      if (t < 2) return;                                   // (the first seconds: shaders compiling, textures uploading)
+      frames++; time += dt;
+      if (time < 5) return;
+      autoQ = null;
+      const fps = frames / time;
+      S = settings.set({ autoChecked: true });
+      if (fps >= 40) return;
+      S = settings.set({ quality: "low" });
+      renderer.setPixelRatio(1); sun.castShadow = false; renderer.shadowMap.enabled = false;
+      scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); });
+      resize();
+      ui.toast("Switched to light graphics for smoother play", 2600);
+    };
+  }
   function play() {
     audio.start();
     // phones: full screen, held sideways (where the browser allows locking it)
@@ -851,7 +875,7 @@ async function main() {
     if (cart.attached) cart.obj.root.visible = !cart.hidden;
     const p = kid.root.position;
     tweenTo(new THREE.Vector3(p.x, 10.9, p.z + 17.5), new THREE.Vector3(p.x, 3.4, p.z), 1.4);
-    startTutorial();
+    startTutorial(); startAutoQuality();
   }
   if (TITLE) {
     controls.enabled = false;
@@ -859,9 +883,12 @@ async function main() {
     const hasSave = save.wins > 0 || save.tutorial || save.hasCart || save.score > 0;
     ui.showTitle(hasSave, { play, cont: play, fresh: resetProgress, settings: () => openSettings(), credits: () => ui.showCredits() });
   }
+  if (!TITLE) startAutoQuality();
   ui.ready();
   const frame = now => {
-    const dt = Math.max(0, Math.min(.1, (now - last) / 1000)); last = now;   // rAF clocks can start behind performance.now()
+    const realDt = Math.max(0, (now - last) / 1000);
+    const dt = Math.max(0, Math.min(.1, realDt)); last = now;
+    if (autoQ) autoQ(Math.min(realDt, 1));   // rAF clocks can start behind performance.now()
     let steps = 0;
     if (TEST) steps = TEST === "claw" ? 24 : 6;
     else {
@@ -912,6 +939,13 @@ async function main() {
     stepFlights(paused ? 0 : dt);
     cashierNpc.animate(dt, 0); swapNpc.animate(dt, 0);
     if (visitors) for (const l of visitors.update(paused ? 0 : dt, kid.root.position)) say(l.v.kid.root, l.text, 1600);
+    // the other kids aren't drawn while off screen (skinned meshes skip three's own culling; each kid is ~65 draw calls)
+    camera.updateMatrixWorld(); _frustum.setFromProjectionMatrix(_pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    for (const r of [cashierNpc.root, swapNpc.root, ...(visitors ? visitors.list.map(v => v.kid.root) : [])]) {
+      _sph.center.copy(r.position); _sph.center.y += 2; _sph.radius = 3;
+      const on = _frustum.intersectsSphere(_sph);
+      for (const c of r.children) c.visible = on;
+    }
     if (mode === "walk") staffTalk();
     placeBubbles();
     room.update(dt, kid.root.position, camera.position, visitors ? visitors.list.filter(v => v.kid.root.visible).map(v => v.pos) : []);
