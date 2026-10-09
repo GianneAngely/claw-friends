@@ -8,3 +8,4 @@ game/shots/
 game/node_modules/
 game/dist/
 *.blend
+docs/
