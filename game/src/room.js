@@ -487,8 +487,10 @@ export function buildRoom(scene, R, world) {
   return {
     slots,
     // doors slide open near the kid; the front hides when it would stand between the camera and a kid inside
-    update(dt, kid, cam) {
-      const near = Math.abs(kid.x) < D + 2.5 && Math.abs(kid.z - ROOM.z1) < 5;
+    // others: more people who open the doors (the visitors)
+    update(dt, kid, cam, others = []) {
+      const at = p => Math.abs(p.x) < D + 2.5 && Math.abs(p.z - ROOM.z1) < 5;
+      const near = at(kid) || others.some(at);
       doorOpen = THREE.MathUtils.clamp(doorOpen + (near ? 3 : -2) * dt, 0, 1);
       const e = doorOpen * doorOpen * (3 - 2 * doorOpen);
       for (const d of doors) d.g.position.x = d.s * (D / 2 + e * (D - .2));
