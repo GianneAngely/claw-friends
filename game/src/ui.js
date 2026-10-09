@@ -20,7 +20,10 @@ export function init() {
     if (e.repeat) return;
     keys.add(e.code);
     if (e.code === "Space" || e.code === "Enter" || e.code === "KeyE") { input.grab = true; input.action = true; e.preventDefault(); }
-    if (e.code === "Escape") input.back = true;
+    if (e.code === "Escape") {               // (a card open: Esc closes it, like its button)
+      const ok = !$("modal").classList.contains("hide") && $("card").querySelector(".ok");
+      if (ok) ok.click(); else input.back = true;
+    }
     if (e.code === "KeyC") input.wardrobe = true;
     if (e.code === "KeyH") input.hideCart = true;
     if (e.code === "KeyV") input.view = true;
@@ -347,7 +350,7 @@ export function showSwap(smallCount, onPick) {
 // cashier: daily coins, and checkout (new friends go to the shelf, duplicates become coins)
 export function showCashier(info, onDaily, onCheckout) {
   const html = `<div class="rib">CASHIER</div><h2>Welcome!</h2>
-    <div class="cashrow"><div><b>Daily coins</b><p>${info.claimed ? "Claimed today · see you tomorrow" : "Free +5 coins every day"}</p></div><button class="act" id="c-daily" ${info.claimed ? "disabled" : ""}>+5</button></div>
+    <div class="cashrow"><div><b>Daily coins</b><p>${info.broke ? "Out of coins? Here's a little help" : info.claimed ? "Claimed today · see you tomorrow" : "Free +5 coins every day"}</p></div><button class="act" id="c-daily" ${info.claimed && !info.broke ? "disabled" : ""}>${info.broke ? "+3" : "+5"}</button></div>
     <div class="cashrow"><div><b>Check out your cart</b><p>${info.items ? `${info.fresh} new for your shelf · ${info.dupes} extra = +${info.dupes} coin${info.dupes === 1 ? "" : "s"}${info.bigs ? ` · ${info.bigs} big` : ""}` : "Your cart is empty"}</p></div><button class="act" id="c-out" ${info.items ? "" : "disabled"}>Check out</button></div>
     <button class="ok">Close</button>`;
   openCard(html, true);

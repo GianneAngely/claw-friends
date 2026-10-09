@@ -10,8 +10,9 @@ const STREET_Z = 23, AWAY_X = 13.5;
 const HAIR = [0x7A4A32, 0x3A3442, 0xEBC46A, 0xF08DB8, 0x9D86D8, 0xC0603A];
 const pick = (a, rnd) => a[Math.floor(rnd() * a.length)];
 
-export function makeVisitors(scene, places, rnd, n = 3) {
-  const spots = places.map(p => ({ x: p.x + Math.sin(p.yaw) * 4.4, z: p.z + Math.cos(p.yaw) * 4.4, yaw: p.yaw + Math.PI }));
+// open(i): whether machine i is open (they don't play locked ones)
+export function makeVisitors(scene, places, rnd, n = 3, open = () => true) {
+  const spots = places.map((p, i) => ({ i, x: p.x + Math.sin(p.yaw) * 4.4, z: p.z + Math.cos(p.yaw) * 4.4, yaw: p.yaw + Math.PI }));
   const aisle = x => Math.sign(x) * AISLE_X;
   function dress(v) {
     if (v.kid) scene.remove(v.kid.root);
@@ -42,7 +43,7 @@ export function makeVisitors(scene, places, rnd, n = 3) {
   // (all starting at the door, they stood in the same spot behind Kyoko on every load)
   const list = [], taken = new Set();
   for (let i = 0; i < n; i++) {
-    let s; do s = pick(spots, rnd); while (taken.has(s));
+    const pool = spots.filter(q => open(q.i) && !taken.has(q)), s = pick(pool.length ? pool : spots.filter(q => !taken.has(q)), rnd);
     taken.add(s);
     const v = { id: i, pos: new THREE.Vector3(s.x, 0, s.z), yaw: s.yaw, path: [], wait: 1 + rnd() * 8, plays: Math.floor(rnd() * 2), kid: null, atSpot: true, goal: s, said: null };
     dress(v); v.kid.root.position.copy(v.pos); list.push(v);
@@ -65,8 +66,8 @@ export function makeVisitors(scene, places, rnd, n = 3) {
             if (v.plays >= 2 + Math.floor(rnd() * 2)) route(v, "door");
             else {
               // (not the machine Kyoko stands at - they walked into her spot and stood inside her)
-              const free = spots.filter(q => !taken.has(q) && Math.hypot(q.x - player.x, q.z - player.z) > 4);
-              const s = pick(free.length ? free : spots, rnd);
+              const free = spots.filter(q => open(q.i) && !taken.has(q) && Math.hypot(q.x - player.x, q.z - player.z) > 4);
+              const s = pick(free.length ? free : spots.filter(q => open(q.i)), rnd);
               taken.add(s); route(v, s);
             }
           }
