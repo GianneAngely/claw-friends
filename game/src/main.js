@@ -960,7 +960,7 @@ async function main() {
   };
   renderer.setAnimationLoop(frame);
   // (frame: one step of the main loop, for driving it at an exact frame rate in tests)
-  window.CF = { games, get kid() { return kid; }, get mode() { return mode; }, kidBody, camera, controls, save, scene, renderer, frame, THREE, visitors };
+  window.CF = { games, get kid() { return kid; }, get mode() { return mode; }, kidBody, camera, controls, save, scene, renderer, frame, THREE, visitors, spots, world, RAPIER, get kidCol() { return kidColRef; } };
 }
 
 main();

@@ -292,3 +292,4 @@ body.titling #hud > *:not(#title):not(.modal):not(.loading):not(.toast) { displa
 .btn.view.on .hint { background: var(--pink); color: #fff; }
 @media (pointer: coarse) { .btn .hint { display: none; } }
 @media (max-width: 600px) { .srow { grid-template-columns: 104px 1fr 42px; column-gap: 10px; font-size: 14px; } .sfoot button { min-width: 0; flex: 1; } }
+@media (max-width: 600px) { .top { top: 130px; } }   /* (phones: below the controls / eye buttons - the friend set covered them) */
