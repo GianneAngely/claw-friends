@@ -4,6 +4,8 @@ A **3D anime-style claw machine arcade** for the browser. Walk Kyoko around a co
 
 ![Claw Friends](screenshot.png)
 
+**Play it:** https://claw-friends.vercel.app
+
 ## Run locally
 
 ```bash
