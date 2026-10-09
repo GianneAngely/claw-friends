@@ -946,7 +946,7 @@ async function main() {
     const f = controls.target;
     sun.position.set(f.x + 13, 24, f.z + 16); sun.target.position.set(f.x, 0, f.z);
     if (Q.get("cam") && frames < 3) { const c = Q.get("cam").split(",").map(Number); camera.position.set(c[0], c[1], c[2]); controls.target.set(c[3], c[4], c[5]); controls.update(); }
-    toppers.update(camera.position, controls.target, dt, mode !== "wardrobe");
+    toppers.update(camera.position, controls.target, dt, mode !== "wardrobe", mode === "walk" && !fp);
     const sk = shakeT > 0 ? shakeA * shakeT / .35 : 0;
     shakeT = Math.max(0, shakeT - dt);
     const so = new THREE.Vector3((Math.random() - .5) * sk, (Math.random() - .5) * sk, 0).applyQuaternion(camera.quaternion);
