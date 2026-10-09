@@ -16,3 +16,6 @@ refs/picks.png
 refs/pins.json
 refs/index.json
 refs/sheets/
+
+# itch.io page kit (built from the game, uploaded by hand)
+itch/

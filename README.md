@@ -4,7 +4,7 @@ A **cozy 3D anime-style claw machine arcade** for the browser. Walk Kyoko around
 
 ![Claw Friends title screen](screenshot.png)
 
-**Play it:** https://claw-friends.vercel.app
+**Play it:** https://claw-friends.vercel.app · also on [itch.io](https://gianneangely.itch.io/claw-friends)
 
 ![Gameplay: walking to a machine and dropping the claw](docs/gameplay.gif)
 
