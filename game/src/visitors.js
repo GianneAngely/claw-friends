@@ -4,6 +4,9 @@ import * as THREE from "three";
 import { makeKid, HOODS, TOPS, BOTTOMS, HEIGHTS } from "./kid.js";
 
 const DOOR = new THREE.Vector3(0, 0, 17), FRONT_Z = 11.5, AISLE_X = 10.65, SPEED = 3.4;
+// leaving, they walk out of the door and along the sidewalk to its end, where they're out of sight: only there do they
+// change into a new outfit (changing at the door, they swapped hood and clothes in plain view)
+const STREET_Z = 23, AWAY_X = 13.5;
 const HAIR = [0x7A4A32, 0x3A3442, 0xEBC46A, 0xF08DB8, 0x9D86D8, 0xC0603A];
 const pick = (a, rnd) => a[Math.floor(rnd() * a.length)];
 
@@ -24,9 +27,11 @@ export function makeVisitors(scene, places, rnd, n = 3) {
     const cur = ax !== null ? ax : null;
     if (to === "door") {
       if (cur !== null) path.push(new THREE.Vector3(cur, 0, FRONT_Z));
-      path.push(new THREE.Vector3(0, 0, FRONT_Z), DOOR.clone());
+      v.side = rnd() < .5 ? -1 : 1;
+      path.push(new THREE.Vector3(0, 0, FRONT_Z), DOOR.clone(), new THREE.Vector3(0, 0, STREET_Z), new THREE.Vector3(v.side * AWAY_X, 0, STREET_Z));
     } else {
       const tx = aisle(to.x);
+      if (v.away) { path.push(new THREE.Vector3(0, 0, STREET_Z), DOOR.clone()); v.away = false; }
       if (cur === null) path.push(new THREE.Vector3(0, 0, FRONT_Z), new THREE.Vector3(tx, 0, FRONT_Z));
       else if (cur !== tx) path.push(new THREE.Vector3(cur, 0, FRONT_Z), new THREE.Vector3(tx, 0, FRONT_Z));
       path.push(new THREE.Vector3(tx, 0, to.z), new THREE.Vector3(to.x, 0, to.z));
@@ -53,6 +58,7 @@ export function makeVisitors(scene, places, rnd, n = 3) {
           v.wait -= dt;
           if (v.goal && v.goal !== "door" && v.atSpot && rnd() < dt * .12) { v.kid.setFace("happy", 1.6); lines.push({ v, text: pick(["Yay!", "Got one!", "So cute!", "♡♡♡"], rnd) }); }
           if (v.wait <= 0) {
+            if (v.away) v.kid.root.visible = true;   // (back from the sidewalk's end in the new outfit)
             if (v.goal && v.goal !== "door") taken.delete(v.goal);
             if (v.plays >= 2 + Math.floor(rnd() * 2)) route(v, "door");
             else {
@@ -72,7 +78,7 @@ export function makeVisitors(scene, places, rnd, n = 3) {
             if (d < .05) v.path.shift();
           }
           if (!v.path.length) {
-            if (v.goal === "door") { v.plays = 0; v.goal = null; v.wait = 2 + rnd() * 4; dress(v); v.pos.copy(DOOR); v.yaw = Math.PI; }
+            if (v.goal === "door") { v.plays = 0; v.goal = null; v.wait = 4 + rnd() * 6; dress(v); v.away = true; v.kid.root.visible = false; }
             else { v.atSpot = true; v.plays++; v.wait = 5 + rnd() * 6; }
           }
         }
