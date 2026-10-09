@@ -98,6 +98,17 @@ function inkLine() {
 let TEMPLATE = null;
 const FACES = {};
 let HAIR_TEX = null;   // her hair as drawn (strands, shading, highlights), projected from the front
+// light graphics: big textures halved (the hair alone is 2336x3124, ~29 MB of GPU memory at full size)
+let SHRINK = false;
+export function setLight(on) { SHRINK = on; }
+function shrink(t) {
+  const im = t.image;
+  if (!SHRINK || !im || im.width <= 1024) return t;
+  const c = document.createElement("canvas"); c.width = im.width >> 1; c.height = im.height >> 1;
+  c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+  t.image = c; t.needsUpdate = true;
+  return t;
+}
 export async function loadKid() {
   if (TEMPLATE) return;
   const buf = kyokoGlb.buffer.slice(kyokoGlb.byteOffset, kyokoGlb.byteOffset + kyokoGlb.byteLength);
@@ -106,9 +117,9 @@ export async function loadKid() {
   await Promise.all(Object.entries({ idle: faceIdle, blink: faceBlink, happy: faceHappy, sad: faceSad, wow: faceWow, pout: facePout, wink: faceWink }).map(async ([k, url]) => {
     const t = await loader.loadAsync(url);
     t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;   // glTF UV convention
-    FACES[k] = t;
+    FACES[k] = shrink(t);
   }));
-  HAIR_TEX = await loader.loadAsync(hairPng);
+  HAIR_TEX = shrink(await loader.loadAsync(hairPng));
   HAIR_TEX.flipY = false; HAIR_TEX.colorSpace = THREE.SRGBColorSpace; HAIR_TEX.anisotropy = 4;
 }
 // walk cycle, per leg: phase 0 = that heel touches down; stance 0-0.6, swing 0.6-1 (normal gait: initial contact,

@@ -12,7 +12,7 @@ import { makePlush, PLUSH, PLUSH_BY_KEY, SPECIES } from "./plush.js";
 import { buildRoom, setSkyTint, PLACES, START, SHELF, CASHIER, SWAP, CORRAL, cartModel } from "./room.js";
 import { makeVisitors } from "./visitors.js";
 import { ClawGame } from "./claw.js";
-import { makeKid, loadKid, DEFAULT_OUTFIT, HOODS, HAIRS, FACE_OPTS, HEIGHTS, SHOES, TOPS, BOTTOMS } from "./kid.js";
+import { makeKid, loadKid, setLight, DEFAULT_OUTFIT, HOODS, HAIRS, FACE_OPTS, HEIGHTS, SHOES, TOPS, BOTTOMS } from "./kid.js";
 import * as ui from "./ui.js";
 import * as store from "./save.js";
 import * as audio from "./sfx.js";
@@ -62,12 +62,14 @@ async function main() {
   ui.onMute(() => audio.toggleMute(), audio.isMuted());
   ui.onMusic(() => audio.toggleMusic(), audio.isMusicOn());
   let S = settings.get();
+  if (Q.get("quality")) S = { ...S, quality: Q.get("quality") };   // (?quality=low|high to try one, not saved)
   audio.setVolumes(S.music, S.sfx);
   ui.loading(.1, "Waking up the arcade…");
   await document.fonts.load("700 40px Fredoka");
   ui.loading(.25, "Oiling the claws…");
   await RAPIER.init();
   ui.loading(.45, "Kyoko is getting dressed…");
+  setLight(S.quality === "low");
   await loadKid();
   ui.loading(.6, "Stacking the plushies…");
   await new Promise(r => setTimeout(r, 30));   // (lets the bar paint before the long synchronous build)
@@ -86,7 +88,14 @@ async function main() {
   // soft glow on the brightest areas, like a lit illustration
   // the scene is drawn into the composer's own render target: it needs its own multisampling (the canvas'
   // antialias doesn't reach it) - without it every outline was jagged and broken up
-  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
+  // (light graphics: no multisampled half-float target - many phone GPUs can't render to one)
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, S.quality === "low" ? {} : { type: THREE.HalfFloatType, samples: 4 }));
+  // the GPU gave up (a phone out of memory): try again on light graphics, or say so
+  canvas.addEventListener("webglcontextlost", e => {
+    e.preventDefault();
+    if (S.quality !== "low") { settings.set({ quality: "low" }); try { sessionStorage.setItem("cf-autoplay", mode === "title" ? "" : "1"); } catch {} location.reload(); }
+    else ui.toast("The graphics stopped · reload the page to keep playing", 6000);
+  });
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .22, .35, 1.04);
   composer.addPass(bloom); bloom.enabled = S.quality !== "low";
@@ -818,12 +827,8 @@ async function main() {
     S = settings.set(patch);
     audio.setVolumes(S.music, S.sfx);
     controls.rotateSpeed = S.sens;
-    if ("quality" in patch) {
-      const low = S.quality === "low";
-      renderer.setPixelRatio(low ? 1 : Math.min(devicePixelRatio, 2)); sun.castShadow = !low; bloom.enabled = !low;
-      scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); });   // (shadows on / off recompile)
-      resize();
-    }
+    // (graphics: the render target and the texture sizes are set at load, so it reloads - into the game if playing)
+    if ("quality" in patch) restart(mode !== "title");
   }
   function restart(play) { try { if (play) sessionStorage.setItem("cf-autoplay", "1"); } catch {} location.reload(); }
   const resetProgress = () => { store.save({}); restart(true); };
@@ -953,7 +958,8 @@ async function main() {
     shakeT = Math.max(0, shakeT - dt);
     const so = new THREE.Vector3((Math.random() - .5) * sk, (Math.random() - .5) * sk, 0).applyQuaternion(camera.quaternion);
     camera.position.add(so);
-    if (!TEST || frames % 10 === 0 || window.TEST_DONE || window.FROZEN) composer.render();
+    // (light graphics: straight to the canvas - its own antialiasing, no extra full-screen target in GPU memory)
+    if (!TEST || frames % 10 === 0 || window.TEST_DONE || window.FROZEN) S.quality === "low" ? renderer.render(scene, camera) : composer.render();
     camera.position.sub(so);
     if (++frames >= 5 && !tween && (TEST !== "machine" || frames > 40) && (TEST !== "walk" || window.ARRIVED) && (TEST !== "wardrobe" || frames > 30)) window.READY = true;
     if (TEST === "claw" && testRounds.length >= ROUNDS && !window.TEST_DONE) {
