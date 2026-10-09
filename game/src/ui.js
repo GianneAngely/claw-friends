@@ -222,12 +222,12 @@ export function showSettings(s, onChange, onReset, onClose) {
     <div class="srow"><span>Music</span><input type="range" id="s-music" min="0" max="1" step=".05" value="${s.music}"><output>${pct(s.music)}</output></div>
     <div class="srow"><span>Sound effects</span><input type="range" id="s-sfx" min="0" max="1" step=".05" value="${s.sfx}"><output>${pct(s.sfx)}</output></div>
     <div class="srow"><span>Camera speed</span><input type="range" id="s-sens" min=".4" max="2" step=".1" value="${s.sens}"><output>${pct(s.sens)}</output></div>
-    <div class="srow"><span>Graphics</span><div class="seg" id="s-q"><button data-q="low">Light (phones)</button><button data-q="high">Pretty</button></div></div>
-    <button class="danger" id="s-reset">Reset progress…</button><div id="s-conf"></div>
-    <button class="ok">Done</button>`, true, onClose);
+    <div class="srow"><span>Graphics</span><div class="seg" id="s-q"><button data-q="low">Light</button><button data-q="high">Pretty</button></div></div>
+    <div id="s-conf"></div><div class="sfoot"><button class="danger" id="s-reset">Reset…</button><button class="ok">Done</button></div>`, true, onClose);
   for (const k of ["music", "sfx", "sens"]) {
-    const el = $("s-" + k);
-    el.addEventListener("input", () => { el.nextElementSibling.textContent = pct(+el.value); onChange({ [k]: +el.value }); });
+    const el = $("s-" + k), fill = () => el.style.setProperty("--p", (el.value - el.min) / (el.max - el.min) * 100 + "%");
+    fill();
+    el.addEventListener("input", () => { fill(); el.nextElementSibling.textContent = pct(+el.value); onChange({ [k]: +el.value }); });
   }
   const q = $("s-q"), paintQ = v => q.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.q === v));
   paintQ(s.quality);
