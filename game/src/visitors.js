@@ -1,7 +1,7 @@
 // Other kids visiting the arcade: they walk the aisles from machine to machine, play a little, sometimes cheer,
 // and leave by the door (coming back in a new outfit). They stop for Kyoko instead of walking through her.
 import * as THREE from "three";
-import { makeKid, HOODS, TOPS, BOTTOMS, HEIGHTS } from "./kid.js";
+import { makeKid, HOODS, TOPS, BOTTOMS, HEIGHTS, SHOES } from "./kid.js";
 
 const DOOR = new THREE.Vector3(0, 0, 17), FRONT_Z = 11.5, AISLE_X = 10.65, SPEED = 3.4;
 // leaving, they walk out of the door and along the sidewalk to its end, where they're out of sight: only there do they
@@ -16,7 +16,7 @@ export function makeVisitors(scene, places, rnd, n = 3, open = () => true) {
   const aisle = x => Math.sign(x) * AISLE_X;
   function dress(v) {
     if (v.kid) scene.remove(v.kid.root);
-    const outfit = { hood: pick(HOODS, rnd).id, top: pick(TOPS, rnd).id, bottom: pick(BOTTOMS, rnd).id, height: pick(HEIGHTS.slice(0, 3), rnd).id };
+    const outfit = { hood: pick(HOODS, rnd).id, top: pick(TOPS, rnd).id, bottom: pick(BOTTOMS, rnd).id, height: pick(HEIGHTS.slice(0, 3), rnd).id, shoes: pick(SHOES, rnd).id };
     v.kid = makeKid(outfit, { hair: pick(HAIR, rnd) });
     scene.add(v.kid.root);
   }
