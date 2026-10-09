@@ -3,3 +3,5 @@ game/dist/
 .DS_Store
 __pycache__/
 previews/
+.vercel
+.env*

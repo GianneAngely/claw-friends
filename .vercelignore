@@ -1,0 +1,10 @@
+blender/
+refs/
+mockup/
+mockup3d/
+previews/
+tools/
+game/shots/
+game/node_modules/
+game/dist/
+*.blend
