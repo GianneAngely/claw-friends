@@ -278,3 +278,11 @@ body.titling #hud > *:not(#title):not(.modal):not(.loading):not(.toast) { displa
 .bubble { transform: translate(-50%, -100%); padding: 6px 14px; background: #fff; border: 3px solid var(--ink); border-radius: 16px; font-weight: 700; font-size: 16px; white-space: nowrap; box-shadow: var(--drop); animation: bpop .3s cubic-bezier(.3, 1.6, .5, 1); pointer-events: none; }
 @keyframes bpop { from { transform: translate(-50%, -100%) scale(.6); opacity: 0; } }
 .bubble::after { content: ""; position: absolute; left: 50%; bottom: -10px; margin-left: -8px; border: 8px solid transparent; border-top-color: var(--ink); border-bottom: 0; }
+
+/* ---- shortcut hints on the buttons, the eye button's on state ---- */
+.btn { position: absolute; }
+.btn .hint { position: absolute; right: -7px; bottom: -7px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 7px; background: #fff; border: 2px solid var(--ink); font: 700 11px/16px Fredoka, sans-serif; color: var(--ink); }
+.btn.view.on { background: var(--ink); }
+.btn.view.on svg path { fill: #FFD4E5; stroke: #fff; }
+.btn.view.on .hint { background: var(--pink); color: #fff; }
+@media (pointer: coarse) { .btn .hint { display: none; } }

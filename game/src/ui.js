@@ -75,7 +75,8 @@ export function init() {
   ICON.kbd = `<svg viewBox="-12 -12 24 24"><rect x="-10.5" y="-6.5" width="21" height="13" rx="3" fill="#C9B6F2" stroke="${window.INK}" stroke-width="2.2"/>${[-6, -2, 2, 6].map(x => `<rect x="${x - 1.3}" y="-3.6" width="2.6" height="2.4" rx=".6" fill="#fff"/>`).join("")}<rect x="-5" y="1.6" width="10" height="2.4" rx=".8" fill="#fff"/></svg>`;
   $("keysBtn").innerHTML = ICON.kbd;
   ICON.eye = `<svg viewBox="-12 -12 24 24"><path d="M-10.5,0 C-6,-7.5 6,-7.5 10.5,0 C6,7.5 -6,7.5 -10.5,0 Z" fill="#fff" stroke="${window.INK}" stroke-width="2.2" stroke-linejoin="round"/><circle r="3.8" fill="#8ED8FF" stroke="${window.INK}" stroke-width="2"/><circle r="1.5" fill="${window.INK}"/></svg>`;
-  $("viewBtn").innerHTML = ICON.eye;
+  $("viewBtn").innerHTML = ICON.eye + `<kbd class="hint">V</kbd>`;
+  $("wardBtn").insertAdjacentHTML("beforeend", `<kbd class="hint">C</kbd>`);
   ICON.pause = `<svg viewBox="-12 -12 24 24"><rect x="-7" y="-8" width="5" height="16" rx="2" fill="#C9B6F2" stroke="${window.INK}" stroke-width="2.2"/><rect x="2" y="-8" width="5" height="16" rx="2" fill="#C9B6F2" stroke="${window.INK}" stroke-width="2.2"/></svg>`;
   $("pauseBtn").innerHTML = ICON.pause;
   ICON.note = `<svg viewBox="-12 -12 24 24"><path d="M-2,6 L-2,-7 L8,-9 L8,4" fill="none" stroke="${window.INK}" stroke-width="2.4" stroke-linejoin="round"/><ellipse cx="-4.6" cy="6.4" rx="3.4" ry="2.6" fill="#FFA8D4" stroke="${window.INK}" stroke-width="2"/><ellipse cx="5.4" cy="4.4" rx="3.4" ry="2.6" fill="#FFA8D4" stroke="${window.INK}" stroke-width="2"/></svg>`;
@@ -185,6 +186,8 @@ export function onMute(toggle, muted) {
   paint(muted);
   b.addEventListener("click", e => { paint(toggle()); e.currentTarget.blur(); });
 }
+// the eye button lights up while the view is through Kyoko's eyes
+export function setViewOn(on) { $("viewBtn").classList.toggle("on", on); $("viewBtn").title = on ? "Back to the follow camera (V)" : "Through Kyoko's eyes (V)"; }
 export function ready() { loading(1, "Ready!"); setTimeout(() => $("loading").classList.add("hide"), 250); }
 export function loading(frac, text) { $("lbar").style.width = Math.round(frac * 100) + "%"; if (text) $("ltext").textContent = text; }
 

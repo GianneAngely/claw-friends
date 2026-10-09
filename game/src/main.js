@@ -336,7 +336,7 @@ async function main() {
     fpYaw = Math.atan2(d.x, d.z); fpPitch = Math.asin(d.y / d.length());
   }
   function setFirstPerson(on) {
-    fp = on;
+    fp = on; ui.setViewOn(on);
     const p = kid.root.position;
     if (on) {
       const e = fpEye(), d = controls.target.clone().sub(mode === "machine" ? e : camera.position);
