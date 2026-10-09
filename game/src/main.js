@@ -262,7 +262,7 @@ async function main() {
   cashierNpc.root.position.set(CASHIER.x - 1.7, 0, CASHIER.z); cashierNpc.root.rotation.y = Math.PI / 2; scene.add(cashierNpc.root);
   const swapNpc = makeKid({ hood: "koala", top: "mint", bottom: "denim" }, { hair: 0xB9A2F0, hoodColor: 0xFFFFFF });
   swapNpc.root.position.set(SWAP.x + 1.7, 0, SWAP.z); swapNpc.root.rotation.y = -Math.PI / 2; scene.add(swapNpc.root);
-  const visitors = TEST ? null : makeVisitors(scene, PLACES, rnd, S.quality === "low" ? 1 : 3);   // (each kid costs ~80 draw calls)
+  const visitors = TEST ? null : makeVisitors(scene, PLACES, rnd, S.quality === "low" ? 1 : 3, i => !isLocked(games[i]));   // (each kid costs ~80 draw calls)
 
   // ---------- speech bubbles over heads ----------
   const bubbles = [];
@@ -601,9 +601,12 @@ async function main() {
     } else if (near.kind === "cashier") {
       cashierNpc.setFace("happy", 1.5);
       const plan = checkoutPlan();
-      ui.showCashier({ claimed: save.ticketDay === store.today(), items: save.cart.length, ...plan }, () => {
-        save.ticketDay = store.today(); save.coins += 5; persist(); ui.setCoins(save.coins);
-        ui.toast("+5 coins! Have fun"); audio.sfx.coin();
+      // (no coins, daily coins taken and nothing to sell: the game would be stuck until tomorrow - a small top-up)
+      const claimed = save.ticketDay === store.today(), broke = claimed && save.coins < 1 && plan.dupes === 0;
+      ui.showCashier({ claimed, broke, items: save.cart.length, ...plan }, () => {
+        const n = broke ? 3 : 5;
+        save.ticketDay = store.today(); save.coins += n; persist(); ui.setCoins(save.coins);
+        ui.toast(`+${n} coins! Have fun`); audio.sfx.coin();
       }, checkout);
     } else if (near.kind === "swap") {
       swapNpc.setFace("happy", 1.5);
