@@ -33,12 +33,15 @@ export function makeVisitors(scene, places, rnd, n = 3) {
     }
     v.path = path; v.goal = to; v.atSpot = false;
   }
-  const list = [];
+  // they're already in the arcade when the game opens, each at a different random machine, part-way through a play
+  // (all starting at the door, they stood in the same spot behind Kyoko on every load)
+  const list = [], taken = new Set();
   for (let i = 0; i < n; i++) {
-    const v = { pos: DOOR.clone().add(new THREE.Vector3((i - 1) * 1.5, 0, 0)), yaw: Math.PI, path: [], wait: 1 + i * 4, plays: 0, kid: null, atSpot: false, said: null };
+    let s; do s = pick(spots, rnd); while (taken.has(s));
+    taken.add(s);
+    const v = { pos: new THREE.Vector3(s.x, 0, s.z), yaw: s.yaw, path: [], wait: 1 + rnd() * 8, plays: Math.floor(rnd() * 2), kid: null, atSpot: true, goal: s, said: null };
     dress(v); v.kid.root.position.copy(v.pos); list.push(v);
   }
-  const taken = new Set();
   return {
     list,
     // player: Kyoko's position; returns lines to show in bubbles [{v, text}]
