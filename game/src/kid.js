@@ -329,10 +329,10 @@ export function makeKid(outfit = DEFAULT_OUTFIT, base = BASE) {
       for (const side of ["L", "R"]) {
         const g = side === "L" ? 1 : -1;
         let up, fo, th;
-        if (pose === "wave" && side === WAVE) {      // hello! (the title screen): the reference's wave, hand swinging
-          // (the upper arm keeps its rest line; the forearm swings up from the elbow)
-          const w = Math.sin(t * 7) * .38;
-          up = ARM[side].rest.upper.clone(); fo = V(g * (.25 + w), 1, .25); th = V(-g * .3, 0, 1);
+        if (pose === "wave" && side === WAVE) {      // hello! (the title screen): the cheer's clean arm, hand swinging
+          // (the upper arm stays down under the capelet like the cheer - raised, the sleeve broke into pieces)
+          const w = Math.sin(t * 7) * .3;
+          up = V(g * .3, -1, .12); fo = V(g * (.25 + w), .6, .8); th = V(-g * .3, 0, 1);
         } else if (happy) {                                  // "yay!": fists up in front
           // (the upper arms stay down under the capelet - raised, the sleeves came out of it in broken pieces - and the
           // elbows bend only a little past square: folded up further, the forearms cut through the sleeves)
