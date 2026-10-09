@@ -837,6 +837,8 @@ async function main() {
   }
   function play() {
     audio.start();
+    // phones: full screen, held sideways (where the browser allows locking it)
+    if (TOUCH) (async () => { try { await document.documentElement.requestFullscreen(); await screen.orientation.lock("landscape"); } catch {} })();
     ui.hideTitle(); mode = "walk"; ui.setMode("walk");
     kidYaw = Math.PI; kid.root.rotation.y = kidYaw; kidPrev.yaw = kidCur.yaw = kidYaw;
     if (cart.attached) cart.obj.root.visible = !cart.hidden;

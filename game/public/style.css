@@ -239,7 +239,7 @@ body.titling #hud > *:not(#title):not(.modal):not(.loading):not(.toast) { displa
 .confirm .row2 button.yes { background: #FF8AA8; color: #fff; }
 .credits p { margin: 6px 0; }
 .credits .who { font-size: 13px; opacity: .65; text-transform: uppercase; letter-spacing: 1px; margin-top: 12px; }
-@media (max-width: 600px), (max-height: 520px) {
+@media (max-width: 600px) {
   .title { background: linear-gradient(rgba(255, 246, 250, .9) 0, transparent 26%, transparent 62%, rgba(255, 246, 250, .85) 82%); padding: 5vh 6vw 3vh; }
   .title { justify-content: stretch; }
   .tmenu { align-self: end; margin-bottom: 14px; width: 100%; }
@@ -293,3 +293,27 @@ body.titling #hud > *:not(#title):not(.modal):not(.loading):not(.toast) { displa
 @media (pointer: coarse) { .btn .hint { display: none; } }
 @media (max-width: 600px) { .srow { grid-template-columns: 104px 1fr 42px; column-gap: 10px; font-size: 14px; } .sfoot button { min-width: 0; flex: 1; } }
 @media (max-width: 600px) { .top { top: 130px; } }   /* (phones: below the controls / eye buttons - the friend set covered them) */
+
+/* ---- phones held sideways (short landscape screens): everything a size smaller, the claw stick and GRAB split to
+   either side so the machine stays in view, the title in a left column ---- */
+@media (max-height: 500px) and (orientation: landscape) {
+  #hud > .btn, #logo, .pills, .goals, .tut, .top, .joy, .action, .toast, .banner, .wardrobe, .card, .floaty { zoom: .72; }   /* (not the bubbles: they sit at screen pixels) */
+  .deck { left: 0; right: 0; bottom: 10px; transform: none; justify-content: space-between; padding: 0 22px; background: none; border: 0; box-shadow: none; zoom: .8; pointer-events: none; }
+  .deck > * { pointer-events: auto; }
+  .title { padding: 4vh 4vw 3vh; }
+  .tlogo svg { width: 46px; height: 43px; }
+  .tlogo h1 { font-size: 46px; -webkit-text-stroke-width: 8px; }
+  .tlogo p { font-size: 15px; margin-top: 4px; }
+  .tmenu { gap: 7px; }
+  .tmenu button { min-width: 180px; padding: 6px 18px; font-size: 16px; border-width: 3px; }
+  .tmenu button.main { font-size: 20px; }
+  .tfoot { font-size: 12px; }
+}
+/* portrait phones: the game is played sideways */
+.rotate { display: none; }
+@media (orientation: portrait) and (pointer: coarse) {
+  .rotate { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: linear-gradient(#FFE6F1, #E9E0FF); font-weight: 700; font-size: 22px; text-align: center; padding: 24px; pointer-events: auto; }
+  .rotate .ph { width: 64px; height: 108px; border: 5px solid var(--ink); border-radius: 14px; background: #fff; animation: turnPhone 2s ease-in-out infinite; }
+  .rotate small { font-size: 15px; font-weight: 600; opacity: .7; }
+}
+@keyframes turnPhone { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
