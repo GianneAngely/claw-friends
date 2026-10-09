@@ -44,7 +44,7 @@ export function makeVisitors(scene, places, rnd, n = 3) {
   for (let i = 0; i < n; i++) {
     let s; do s = pick(spots, rnd); while (taken.has(s));
     taken.add(s);
-    const v = { pos: new THREE.Vector3(s.x, 0, s.z), yaw: s.yaw, path: [], wait: 1 + rnd() * 8, plays: Math.floor(rnd() * 2), kid: null, atSpot: true, goal: s, said: null };
+    const v = { id: i, pos: new THREE.Vector3(s.x, 0, s.z), yaw: s.yaw, path: [], wait: 1 + rnd() * 8, plays: Math.floor(rnd() * 2), kid: null, atSpot: true, goal: s, said: null };
     dress(v); v.kid.root.position.copy(v.pos); list.push(v);
   }
   return {
@@ -58,24 +58,49 @@ export function makeVisitors(scene, places, rnd, n = 3) {
           v.wait -= dt;
           if (v.goal && v.goal !== "door" && v.atSpot && rnd() < dt * .12) { v.kid.setFace("happy", 1.6); lines.push({ v, text: pick(["Yay!", "Got one!", "So cute!", "♡♡♡"], rnd) }); }
           if (v.wait <= 0) {
-            if (v.away) v.kid.root.visible = true;   // (back from the sidewalk's end in the new outfit)
+            // back from the sidewalk's end in the new outfit (not on top of someone else coming back the same way)
+            if (v.away && list.some(o => o !== v && o.kid.root.visible && Math.hypot(o.pos.x - v.pos.x, o.pos.z - v.pos.z) < 2.5)) { v.wait = 1; continue; }
+            if (v.away) v.kid.root.visible = true;
             if (v.goal && v.goal !== "door") taken.delete(v.goal);
             if (v.plays >= 2 + Math.floor(rnd() * 2)) route(v, "door");
             else {
-              let s; do s = pick(spots, rnd); while (taken.has(s) && taken.size < spots.length);
+              // (not the machine Kyoko stands at - they walked into her spot and stood inside her)
+              const free = spots.filter(q => !taken.has(q) && Math.hypot(q.x - player.x, q.z - player.z) > 4);
+              const s = pick(free.length ? free : spots, rnd);
               taken.add(s); route(v, s);
             }
           }
         } else if (v.path.length) {
+          // steer round Kyoko (and her cart) and the other visitors instead of stopping and queueing behind them: a
+          // sideways push away from anyone close ahead; another visitor right ahead going the same way is followed
           const t = v.path[0], d = Math.hypot(t.x - v.pos.x, t.z - v.pos.z);
-          const blocked = Math.hypot(player.x - v.pos.x, player.z - v.pos.z) < 2.4 && (t.x - v.pos.x) * (player.x - v.pos.x) + (t.z - v.pos.z) * (player.z - v.pos.z) > 0;
-          if (blocked) { v.blockT = (v.blockT || 0) + dt; if (v.blockT > .4 && !v.said) { v.said = 1; lines.push({ v, text: pick(["Oh! Sorry", "Hi!", "Excuse me~"], rnd) }); } }
-          else {
-            v.blockT = 0; v.said = null;
-            const step = Math.min(d, SPEED * dt);
-            if (d > 1e-3) { v.pos.x += (t.x - v.pos.x) / d * step; v.pos.z += (t.z - v.pos.z) / d * step; v.yaw += Math.atan2(Math.sin(Math.atan2(t.x - v.pos.x, t.z - v.pos.z) - v.yaw), Math.cos(Math.atan2(t.x - v.pos.x, t.z - v.pos.z) - v.yaw)) * Math.min(1, dt * 8); }
+          const fx = d > 1e-3 ? (t.x - v.pos.x) / d : 0, fz = d > 1e-3 ? (t.z - v.pos.z) / d : 0;
+          let sx = 0, sz = 0, follow = false, nearKyoko = false;
+          const avoid = (ox, oz, r) => {
+            const dx = ox - v.pos.x, dz = oz - v.pos.z, dist = Math.hypot(dx, dz), ahead = dx * fx + dz * fz;
+            if (dist > r || ahead < -.3 || dist < 1e-3) return false;
+            const side = dx * -fz + dz * fx;                      // + = obstacle on the left of the way
+            const k = (1 - dist / r) * 3.4 * (Math.abs(side) < .05 ? (v.id % 2 ? 1 : -1) : -Math.sign(side));
+            sx += -fz * k; sz += fx * k;
+            return true;
+          };
+          if (avoid(player.x, player.z, 3.6)) nearKyoko = true;
+          for (const o of list) if (o !== v && o.kid.root.visible) {
+            const dx = o.pos.x - v.pos.x, dz = o.pos.z - v.pos.z, dist = Math.hypot(dx, dz);
+            if (dist < 1.9 && dx * fx + dz * fz > 0 && o.id < v.id && !o.atSpot && o.path.length && Math.hypot(o.path[0].x - t.x, o.path[0].z - t.z) < .5) follow = true;
+            else avoid(o.pos.x, o.pos.z, 2.4);
+          }
+          if (nearKyoko && !v.said) { v.said = 1; lines.push({ v, text: pick(["Oh! Sorry", "Hi!", "Excuse me~"], rnd) }); }
+          if (!nearKyoko) v.said = null;
+          if (!follow) {
+            const mx = fx + sx, mz = fz + sz, ml = Math.hypot(mx, mz) || 1, step = Math.min(d, SPEED * dt);
+            if (d > 1e-3) {
+              v.pos.x += mx / ml * step; v.pos.z += mz / ml * step;
+              const want = Math.atan2(mx, mz);
+              v.yaw += Math.atan2(Math.sin(want - v.yaw), Math.cos(want - v.yaw)) * Math.min(1, dt * 8);
+            }
             speed = .75;
-            if (d < .05) v.path.shift();
+            if (Math.hypot(t.x - v.pos.x, t.z - v.pos.z) < (nearKyoko && v.path.length > 1 ? 1.4 : .15)) v.path.shift();   // (a corner by Kyoko is cut)
           }
           if (!v.path.length) {
             if (v.goal === "door") { v.plays = 0; v.goal = null; v.wait = 4 + rnd() * 6; dress(v); v.away = true; v.kid.root.visible = false; }

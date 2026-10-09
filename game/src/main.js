@@ -901,7 +901,7 @@ async function main() {
     if (visitors) for (const l of visitors.update(paused ? 0 : dt, kid.root.position)) say(l.v.kid.root, l.text, 1600);
     if (mode === "walk") staffTalk();
     placeBubbles();
-    room.update(dt, kid.root.position, camera.position);
+    room.update(dt, kid.root.position, camera.position, visitors ? visitors.list.filter(v => v.kid.root.visible).map(v => v.pos) : []);
     kid.animate(dt, mode === "walk" ? kidSpeed : 0, mode === "title" ? "wave" : mode === "machine" ? "reach" : cart.attached && !cart.hidden && mode === "walk" ? "push" : "walk");
     tutTick(dt);
     audio.levels(active ? active.motor : 0, active ? active.winch : 0);
