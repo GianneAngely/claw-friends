@@ -75,7 +75,8 @@ Stars unlock outfits in the wardrobe:
 - **C** — wardrobe
 - **H** — put the cart away (your friends stay in it)
 - **G** — fold the goals list
-- **Esc** — pause, close a card, leave a machine
+- **Q** — leave a machine
+- **P / Esc** — pause, close a card (in full screen Esc leaves full screen, so use Q and P there)
 
 ## From drawing to 3D
 
