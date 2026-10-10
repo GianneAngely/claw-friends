@@ -4,7 +4,7 @@ A **cozy 3D anime-style claw machine arcade** for the browser. Walk Kyoko around
 
 ![Claw Friends title screen](screenshot.png)
 
-**Play it:** https://claw-friends.vercel.app · also on [itch.io](https://gianneangely.itch.io/claw-friends)
+**[▶ Play Claw Friends on itch.io](https://gianneangely.itch.io/claw-friends)**: free, right in your browser. Follow on itch to hear about updates!
 
 ![Gameplay: walking to a machine and dropping the claw](docs/gameplay.gif)
 
@@ -94,7 +94,7 @@ npm run build
 open dist/index.html
 ```
 
-The built game is a single page that runs straight from `dist/index.html`. A push to `main` deploys to Vercel.
+The built game is a single page that runs straight from `dist/index.html`. To update the itch.io page, zip `game/dist` (without the kidsheet files) and upload it there.
 
 Handy URL parameters while working on it:
 
