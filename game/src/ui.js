@@ -20,9 +20,10 @@ export function init() {
     if (e.repeat) return;
     keys.add(e.code);
     if (e.code === "Space" || e.code === "Enter" || e.code === "KeyE") { input.grab = true; input.action = true; e.preventDefault(); }
-    if (e.code === "Escape") {               // (a card open: Esc closes it, like its button)
+    // Q / P do what Esc does: in full screen the browser keeps Esc for leaving full screen
+    if (e.code === "Escape" || e.code === "KeyQ" || e.code === "KeyP") {   // (a card open: closes it, like its button)
       const ok = !$("modal").classList.contains("hide") && $("card").querySelector(".ok");
-      if (ok) ok.click(); else input.back = true;
+      if (ok) ok.click(); else if (e.code === "KeyP") input.pause = true; else input.back = true;
     }
     if (e.code === "KeyC") input.wardrobe = true;
     if (e.code === "KeyH") input.hideCart = true;
@@ -81,7 +82,8 @@ export function init() {
   $("viewBtn").innerHTML = ICON.eye + `<kbd class="hint">V</kbd>`;
   $("wardBtn").insertAdjacentHTML("beforeend", `<kbd class="hint">C</kbd>`);
   ICON.pause = `<svg viewBox="-12 -12 24 24"><rect x="-7" y="-8" width="5" height="16" rx="2" fill="#C9B6F2" stroke="${window.INK}" stroke-width="2.2"/><rect x="2" y="-8" width="5" height="16" rx="2" fill="#C9B6F2" stroke="${window.INK}" stroke-width="2.2"/></svg>`;
-  $("pauseBtn").innerHTML = ICON.pause;
+  $("pauseBtn").innerHTML = ICON.pause; + `<kbd class="hint">P</kbd>`;
+  $("back").insertAdjacentHTML("beforeend", `<kbd class="hint">Q</kbd>`);
   ICON.note = `<svg viewBox="-12 -12 24 24"><path d="M-2,6 L-2,-7 L8,-9 L8,4" fill="none" stroke="${window.INK}" stroke-width="2.4" stroke-linejoin="round"/><ellipse cx="-4.6" cy="6.4" rx="3.4" ry="2.6" fill="#FFA8D4" stroke="${window.INK}" stroke-width="2"/><ellipse cx="5.4" cy="4.4" rx="3.4" ry="2.6" fill="#FFA8D4" stroke="${window.INK}" stroke-width="2"/></svg>`;
   ICON.star = `<svg viewBox="-12 -12 24 24"><path d="M0,-10 L2.9,-3.6 L9.8,-3 L4.6,1.6 L6.1,8.6 L0,5 L-6.1,8.6 L-4.6,1.6 L-9.8,-3 L-2.9,-3.6 Z" fill="#FF74B8" stroke="${window.INK}" stroke-width="2" stroke-linejoin="round"/></svg>`;
   ICON.cart = `<svg viewBox="-12 -12 24 24"><path d="M-10,-7 L-7,-7 L-4,5 L7,5 L9,-3 L-5.5,-3" fill="#FFA8D4" stroke="${window.INK}" stroke-width="2.2" stroke-linejoin="round"/><circle cx="-3" cy="8.4" r="1.8" fill="${window.INK}"/><circle cx="6" cy="8.4" r="1.8" fill="${window.INK}"/></svg>`;
@@ -365,7 +367,7 @@ export function showControls(touch, onReplay, onClose) {
     ["Stick + <b>GRAB</b>", "Move the claw, grab"], ["Cart counter", "Put the cart away / bring it back"], ["Shirt button", "Wardrobe"], ["Eye button", "Through Kyoko's eyes / back"], ["Tap the goals", "Hide / show them"],
   ] : [
     [K("W A S D"), "Walk · move the claw"], [`${K("← → ↑ ↓")} or drag`, "Look around"], [`${K("E")} ${K("Space")}`, "Use · grab"],
-    [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("V"), "Through Kyoko's eyes / back"], [K("G"), "Hide / show the goals"], [K("Esc"), "Pause · leave the machine"],
+    [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("V"), "Through Kyoko's eyes / back"], [K("G"), "Hide / show the goals"], [K("Q"), "Leave the machine"], [`${K("P")} ${K("Esc")}`, "Pause"],
   ];
   openCard(`<h2>Controls</h2><div class="keylist">${rows.map(([k, d]) => `<div class="krow"><span>${k}</span><b>${d}</b></div>`).join("")}</div>
     <button class="replay" id="k-replay">Replay the tutorial</button><button class="ok">Close</button>`, true, onClose);
