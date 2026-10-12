@@ -21,6 +21,7 @@ import * as progress from "./progress.js";
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.get("test");
+const BOT = Q.has("bot");   // (?bot: the test autopilot plays the machines in a normal game, for recording videos)
 const G_KID = (0x0002 << 16) | 0x0001;
 const STEP = 1 / 60, WALK = 6.5, KID_Y = 2.0, ROUNDS = +(Q.get("rounds") || 12), CART_CAP = 15, CART_Z = 2.2, CART_S = .82;
 const POINTS = { common: 10, uncommon: 30, rare: 100 };
@@ -113,7 +114,7 @@ async function main() {
   // ---------- world ----------
   const world = new RAPIER.World({ x: 0, y: -40, z: 0 });
   world.integrationParameters.numSolverIterations = 8;
-  const rnd = mulberry32(TEST ? 7 : (Date.now() & 0xffffff));
+  const rnd = mulberry32(TEST ? 7 : Q.get("seed") ? +Q.get("seed") : (Date.now() & 0xffffff));   // (?seed: a repeatable run, for recording videos)
   save.shiny = save.shiny || {}; save.sets = save.sets || {};
   progress.ensureDay(save, rnd);
   const room = buildRoom(scene, RAPIER, world);
@@ -729,7 +730,7 @@ async function main() {
     if (ev.back && !ui.isModal()) return exitMachine();
     if (ev.view && !ui.isModal() && !tween) setFirstPerson(!fp);
     let inp;
-    if (TEST === "claw") inp = autopilot();
+    if (TEST === "claw" || BOT) inp = autopilot();
     else {
       const s = ui.isModal() ? { x: 0, y: 0 } : ui.stickDir();
       camAxes();
@@ -741,7 +742,7 @@ async function main() {
         else if (g.state === "idle") startRound();
       }
     }
-    if (TEST === "claw" && inp.grab && g.state === "idle") { startRound(); inp.grab = false; }
+    if ((TEST === "claw" || BOT) && inp.grab && g.state === "idle") { startRound(); inp.grab = false; }
     if (inp.grab) { grabPress = 1; tutFlags.dropped = true; }
     g.m.tiltStick(inp.x, inp.z);
     g.step(dt, inp);
