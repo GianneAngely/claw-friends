@@ -32,7 +32,7 @@ Every machine runs real physics: the plushies pile up, the claw sways, the prong
 
 ![The collection album](docs/collection.jpg)
 
-Won friends ride in your cart. Check out at the cashier to put the new ones on your shelf; extra copies are bought back for a coin each. Five small friends can be swapped for a BIG friend at the Big Swap booth, and big friends sit on pedestals by the shelf. A full set of six earns a bonus.
+Open the album any time with **B** or the book button, or at the shelf. Won friends ride in your cart (a BIG friend takes three spaces, so the cart shows both: "1 friend · 3/15"). Check out at the cashier to put the new ones on your shelf; extra copies are bought back for a coin each. Five small friends can be swapped for a BIG friend at the Big Swap booth, and big friends sit on pedestals by the shelf. A full set of six earns a bonus.
 
 After the four starter goals, each **day** brings three requests ("Win 3 Seals", "Check out 5+ friends at once"). Finish them for coins and stars, then the next day starts.
 
@@ -73,6 +73,7 @@ Stars unlock outfits in the wardrobe:
 - **Arrow keys or drag** — look around
 - **V** — first person
 - **C** — wardrobe
+- **B** — collection album (or the book button)
 - **H** — put the cart away (your friends stay in it)
 - **G** — fold the goals list
 - **Q** — leave a machine
