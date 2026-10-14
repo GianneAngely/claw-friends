@@ -7,7 +7,7 @@ let icons = {};
 export function setIcons(m) { icons = m; }
 const img = (key, miss) => `<img src="${icons[key] || ""}" class="${miss ? "miss" : ""}" alt="">`;
 
-export const input = { stick: { x: 0, y: 0 }, walk: { x: 0, y: 0 }, grab: false, action: false, back: false, wardrobe: false, hideCart: false, keys: false, view: false, pause: false };
+export const input = { stick: { x: 0, y: 0 }, walk: { x: 0, y: 0 }, grab: false, action: false, back: false, wardrobe: false, album: false, hideCart: false, keys: false, view: false, pause: false };
 const keys = new Set();
 let dragStick = null, dragJoy = null;
 
@@ -26,6 +26,7 @@ export function init() {
       if (ok) ok.click(); else if (e.code === "KeyP") input.pause = true; else input.back = true;
     }
     if (e.code === "KeyC") input.wardrobe = true;
+    if (e.code === "KeyB") input.album = true;
     if (e.code === "KeyH") input.hideCart = true;
     if (e.code === "KeyV") input.view = true;
     if (e.code === "KeyG") foldGoals();
@@ -54,6 +55,7 @@ export function init() {
   $("wardBtn").addEventListener("click", e => { input.wardrobe = true; e.currentTarget.blur(); });
   $("cartPill").addEventListener("click", () => { input.hideCart = true; });
   $("keysBtn").addEventListener("click", e => { input.keys = true; e.currentTarget.blur(); });
+  $("albumBtn").addEventListener("click", e => { input.album = true; e.currentTarget.blur(); });
   $("viewBtn").addEventListener("click", e => { input.view = true; e.currentTarget.blur(); });
   $("pauseBtn").addEventListener("click", e => { input.pause = true; e.currentTarget.blur(); });
   $("goals").addEventListener("click", foldGoals);
@@ -81,6 +83,8 @@ export function init() {
   ICON.eye = `<svg viewBox="-12 -12 24 24"><path d="M-10.5,0 C-6,-7.5 6,-7.5 10.5,0 C6,7.5 -6,7.5 -10.5,0 Z" fill="#fff" stroke="${window.INK}" stroke-width="2.2" stroke-linejoin="round"/><circle r="3.8" fill="#8ED8FF" stroke="${window.INK}" stroke-width="2"/><circle r="1.5" fill="${window.INK}"/></svg>`;
   $("viewBtn").innerHTML = ICON.eye + `<kbd class="hint">V</kbd>`;
   $("wardBtn").insertAdjacentHTML("beforeend", `<kbd class="hint">C</kbd>`);
+  ICON.book = `<svg viewBox="-12 -12 24 24"><path d="M0,-6 C-3,-8.5 -7.5,-8.5 -10,-7 L-10,7.5 C-7.5,6 -3,6 0,8.5 C3,6 7.5,6 10,7.5 L10,-7 C7.5,-8.5 3,-8.5 0,-6 Z" fill="#FFF4C2" stroke="${window.INK}" stroke-width="2" stroke-linejoin="round"/><path d="M0,-6 L0,8.5" stroke="${window.INK}" stroke-width="2"/><path d="M5,-2.2 C3.6,-3.6 2.4,-1.8 5,.4 C7.6,-1.8 6.4,-3.6 5,-2.2 Z" fill="#FF74B8"/></svg>`;
+  $("albumBtn").innerHTML = ICON.book + `<kbd class="hint">B</kbd>`;
   ICON.pause = `<svg viewBox="-12 -12 24 24"><rect x="-7" y="-8" width="5" height="16" rx="2" fill="#C9B6F2" stroke="${window.INK}" stroke-width="2.2"/><rect x="2" y="-8" width="5" height="16" rx="2" fill="#C9B6F2" stroke="${window.INK}" stroke-width="2.2"/></svg>`;
   $("pauseBtn").innerHTML = ICON.pause; + `<kbd class="hint">P</kbd>`;
   $("back").insertAdjacentHTML("beforeend", `<kbd class="hint">Q</kbd>`);
@@ -147,8 +151,8 @@ function drawStick(x, y) {
 }
 
 export function consume() {
-  const r = { grab: input.grab, action: input.action, back: input.back, wardrobe: input.wardrobe, hideCart: input.hideCart, keys: input.keys, view: input.view, pause: input.pause };
-  input.grab = input.action = input.back = input.wardrobe = input.hideCart = input.keys = input.view = input.pause = false;
+  const r = { grab: input.grab, action: input.action, back: input.back, wardrobe: input.wardrobe, album: input.album, hideCart: input.hideCart, keys: input.keys, view: input.view, pause: input.pause };
+  input.grab = input.action = input.back = input.wardrobe = input.album = input.hideCart = input.keys = input.view = input.pause = false;
   return r;
 }
 
@@ -156,6 +160,7 @@ export function setMode(m) {
   const walk = m === "walk", machine = m === "machine", ward = m === "wardrobe";
   $("logo").classList.toggle("hide", !walk);
   $("wardBtn").classList.toggle("hide", !walk);
+  $("albumBtn").classList.toggle("hide", !walk);
   $("viewBtn").classList.toggle("hide", ward);
   $("keysBtn").classList.toggle("hide", ward);
   $("goals").classList.toggle("hide", !walk || tutOn);
@@ -266,7 +271,8 @@ export function confetti(n = 50) {
     setTimeout(() => el.remove(), 2600);
   }
 }
-export function setCart(n, cap, show) { $("cartPill").classList.toggle("hide", !show); $("cartN").textContent = `${n}/${cap}`; }
+// friends = plushies in the cart; n/cap = the space they take (a BIG friend takes 3)
+export function setCart(n, cap, show, friends = n) { $("cartPill").classList.toggle("hide", !show); $("cartN").textContent = `${friends} ${friends === 1 ? "friend" : "friends"} · ${n}/${cap}`; }
 export function floatScore(text) {
   const el = document.createElement("div");
   el.className = "floaty"; el.textContent = text;
@@ -363,10 +369,10 @@ export function showControls(touch, onReplay, onClose) {
   const K = s => s.split(" ").map(k => `<kbd>${k}</kbd>`).join("");
   const rows = touch ? [
     ["Joystick", "Walk"], ["Drag the screen", "Look around"], ["Pink button", "Use (carts, machines, cashier)"],
-    ["Stick + <b>GRAB</b>", "Move the claw, grab"], ["Cart counter", "Put the cart away / bring it back"], ["Shirt button", "Wardrobe"], ["Eye button", "Through Kyoko's eyes / back"], ["Tap the goals", "Hide / show them"],
+    ["Stick + <b>GRAB</b>", "Move the claw, grab"], ["Cart counter", "Put the cart away / bring it back"], ["Shirt button", "Wardrobe"], ["Book button", "Collection album"], ["Eye button", "Through Kyoko's eyes / back"], ["Tap the goals", "Hide / show them"],
   ] : [
     [K("W A S D"), "Walk · move the claw"], [`${K("← → ↑ ↓")} or drag`, "Look around"], [`${K("E")} ${K("Space")}`, "Use · grab"],
-    [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("V"), "Through Kyoko's eyes / back"], [K("G"), "Hide / show the goals"], [K("Q"), "Leave the machine"], [`${K("P")} ${K("Esc")}`, "Pause"],
+    [K("H"), "Put the cart away / bring it back"], [K("C"), "Wardrobe"], [K("B"), "Collection album"], [K("V"), "Through Kyoko's eyes / back"], [K("G"), "Hide / show the goals"], [K("Q"), "Leave the machine"], [`${K("P")} ${K("Esc")}`, "Pause"],
   ];
   openCard(`<h2>Controls</h2><div class="keylist">${rows.map(([k, d]) => `<div class="krow"><span>${k}</span><b>${d}</b></div>`).join("")}</div>
     <button class="replay" id="k-replay">Replay the tutorial</button><button class="ok">Close</button>`, true, onClose);

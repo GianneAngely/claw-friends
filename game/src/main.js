@@ -238,7 +238,7 @@ async function main() {
       cart.obj.basket.add(m); cart.meshes.push(m);
     });
     const used = smalls.length + bigs.length * 3;
-    ui.setCart(used, CART_CAP, cart.attached || save.cart.length > 0);
+    ui.setCart(used, CART_CAP, cart.attached || save.cart.length > 0, save.cart.length);
     return used;
   }
   const cartUsed = () => save.cart.filter(it => !it.big).length + save.cart.filter(it => it.big).length * 3;
@@ -721,6 +721,7 @@ async function main() {
     else if (kidVel.lengthSq() > .3) kidYaw += angDiff(kidYaw, Math.atan2(kidVel.x, kidVel.z)) * Math.min(1, dt * 11);
     if (ev.action && !ui.isModal()) doAction();
     if (ev.wardrobe) openWardrobe();
+    if (ev.album && mode === "walk" && !ui.isModal()) ui.showCollection(owned, undefined, save.shiny);
     if (ev.hideCart && !ui.isModal()) toggleCart();
     if (ev.view && !ui.isModal() && !tween) setFirstPerson(!fp);
     if (ev.back && !ui.isModal()) pause();
