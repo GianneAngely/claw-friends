@@ -159,8 +159,8 @@ export function consume() {
 export function setMode(m) {
   const walk = m === "walk", machine = m === "machine", ward = m === "wardrobe";
   $("logo").classList.toggle("hide", !walk);
-  $("wardBtn").classList.toggle("hide", !walk);
-  $("albumBtn").classList.toggle("hide", !walk);
+  $("wardBtn").classList.toggle("hide", !walk && !machine);   // (at a machine it stays, and says to leave first)
+  $("albumBtn").classList.toggle("hide", !walk && !machine);
   $("viewBtn").classList.toggle("hide", ward);
   $("keysBtn").classList.toggle("hide", ward);
   $("goals").classList.toggle("hide", !walk || tutOn);
@@ -378,15 +378,17 @@ export function showControls(touch, onReplay, onClose) {
     <button class="replay" id="k-replay">Replay the tutorial</button><button class="ok">Close</button>`, true, onClose);
   $("k-replay").addEventListener("click", () => { $("modal").classList.add("hide"); onReplay(); });
 }
-export function showCollection(owned, onClose, shiny = {}) {
+// cart = keys of the small friends riding in the cart (not on the shelf until checkout): shown, with a cart mark
+export function showCollection(owned, onClose, shiny = {}, cart = []) {
   const n = PLUSH.filter(p => owned[p.key]).length, ns = PLUSH.filter(p => shiny[p.key]).length;
-  let html = `<h2>Collection</h2><p>${n} / 24 friends${ns ? ` · ✦ ${ns} shiny` : ""}</p><div class="cbar"><i style="width:${n / 24 * 100}%"></i></div><div class="grid">`;
+  const inCart = new Set(cart), nc = PLUSH.filter(p => inCart.has(p.key) && !owned[p.key]).length;
+  let html = `<h2>Collection</h2><p>${n} / 24 friends${ns ? ` · ✦ ${ns} shiny` : ""}${nc ? ` · 🛒 ${nc} new in your cart` : ""}</p><div class="cbar"><i style="width:${n / 24 * 100}%"></i></div><div class="grid">`;
   for (const s of SPECIES) {
     const list = PLUSH.filter(p => p.species === s.id), k = list.filter(p => owned[p.key]).length;
     html += `<div class="row">${s.machine} <span>${k === 6 ? "✔ set complete" : `${k}/6`}</span></div>`;
     for (const p of list) {
-      const c = owned[p.key] || 0;
-      html += `<div class="slot ${p.tier} ${shiny[p.key] ? "shiny" : ""}" title="${c ? `${p.name} · ${p.tier}` : `??? · ${p.tier}`}">${img(p.key, !c)}${c > 1 ? `<i>x${c}</i>` : ""}${shiny[p.key] ? `<em>✦</em>` : ""}</div>`;
+      const c = owned[p.key] || 0, cartOnly = !c && inCart.has(p.key);
+      html += `<div class="slot ${p.tier} ${shiny[p.key] ? "shiny" : ""} ${cartOnly ? "incart" : ""}" title="${c ? `${p.name} · ${p.tier}` : cartOnly ? `${p.name} · in your cart, check out to keep` : `??? · ${p.tier}`}">${img(p.key, !c && !cartOnly)}${cartOnly ? `<b class="cm">🛒</b>` : ""}${c > 1 ? `<i>x${c}</i>` : ""}${shiny[p.key] ? `<em>✦</em>` : ""}</div>`;
     }
   }
   openCard(html + `</div><button class="ok">Close</button>`, true, onClose);
