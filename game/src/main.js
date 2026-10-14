@@ -562,6 +562,7 @@ async function main() {
     if (cart.attached) { kid.root.add(cart.obj.root); cart.obj.root.position.set(0, 0, CART_Z); cart.obj.root.rotation.set(0, 0, 0); }
   }
   let walkCam = null;
+  const openAlbum = () => ui.showCollection(owned, undefined, save.shiny, save.cart.filter(it => !it.big).map(it => it.key));
   function openWardrobe() {
     if (mode !== "walk" || ui.isModal()) return;
     mode = "wardrobe"; ui.setMode("wardrobe"); setView();
@@ -624,7 +625,7 @@ async function main() {
     } else if (near.kind === "swap") {
       swapNpc.setFace("happy", 1.5);
       ui.showSwap(save.cart.filter(it => !it.big).length, doSwap);
-    } else if (near.kind === "shelf") ui.showCollection(owned, undefined, save.shiny);
+    } else if (near.kind === "shelf") openAlbum();
   }
   // 5 small friends (commons first) become one big friend
   function doSwap(species) {
@@ -721,7 +722,7 @@ async function main() {
     else if (kidVel.lengthSq() > .3) kidYaw += angDiff(kidYaw, Math.atan2(kidVel.x, kidVel.z)) * Math.min(1, dt * 11);
     if (ev.action && !ui.isModal()) doAction();
     if (ev.wardrobe) openWardrobe();
-    if (ev.album && mode === "walk" && !ui.isModal()) ui.showCollection(owned, undefined, save.shiny);
+    if (ev.album && !ui.isModal()) openAlbum();
     if (ev.hideCart && !ui.isModal()) toggleCart();
     if (ev.view && !ui.isModal() && !tween) setFirstPerson(!fp);
     if (ev.back && !ui.isModal()) pause();
@@ -729,6 +730,8 @@ async function main() {
   function machineStep(dt, ev) {
     const g = active;
     if (ev.back && !ui.isModal()) return exitMachine();
+    if (ev.wardrobe && !ui.isModal()) ui.toast("Leave the machine first to change clothes (Q)");
+    if (ev.album && !ui.isModal() && g.state === "idle") openAlbum();
     if (ev.view && !ui.isModal() && !tween) setFirstPerson(!fp);
     let inp;
     if (TEST === "claw" || BOT) inp = autopilot();
